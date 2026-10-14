@@ -1168,9 +1168,6 @@ Also note some MoBIE specific attributes:
                           "type": "zarr",
                           "path": "https://janelia-cosem-datasets.s3.amazonaws.com/jrc_hela-3/jrc_hela-3.zarr/labels/mito_seg",
                         },
-                        "attributes": {
-                            "labels": {}
-                        }
                     }
                 ]
             },
@@ -1193,9 +1190,6 @@ Also note some MoBIE specific attributes:
                           "type": "zarr",
                           "path": "https://janelia-cosem-datasets.s3.amazonaws.com/jrc_macrophage-2/jrc_macrophage-2.zarr/labels/mito_seg"
                         },
-                        "attributes": {
-                            "labels": {}
-                        }
                     }
                 ]
             },
@@ -1218,9 +1212,6 @@ Also note some MoBIE specific attributes:
                           "type": "zarr",
                           "path": "https://janelia-cosem-datasets.s3.amazonaws.com/jrc_jurkat-1/jrc_jurkat-1.zarr/labels/mito_seg"
                         },
-                        "attributes": {
-                            "labels": {}
-                        }
                     }
                 ]
             }
