@@ -164,7 +164,11 @@ the use cases described in the Background are provided later in the document.
 
 ### Features deferred to subsequent sub-RFC
 
-This RFC will defer the definition of some features to forthcoming sub-RFCs. In doing so, we aim to help reviewers focus on providing feedback on the core building being defined in this RFC. In parallel to the review of RFC-8, we will author sub-RFCs for each deferred feature that propose how they will be expressed using the core RFC-8 building blocks. As we iterate on the design of RFC-8, we will update the sub-RFCs. All deferred features will be defined in the v1.0 specification.
+This RFC will defer the definition of some features to forthcoming sub-RFCs. 
+In doing so, we aim to help reviewers focus on providing feedback on the core building being defined in this RFC. 
+In parallel to the review of RFC-8, we will author sub-RFCs for each deferred feature that propose how they will be expressed using the core RFC-8 building blocks. 
+As we iterate on the design of RFC-8, we will update the sub-RFCs. 
+All deferred features will be defined in the v1.0 specification.
 
 The following features are being deferred to sub-RFCs:
 
