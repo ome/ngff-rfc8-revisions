@@ -168,7 +168,7 @@ This RFC will defer the definition of some features to forthcoming sub-RFCs.
 In doing so, we aim to help reviewers focus on providing feedback on the core building being defined in this RFC. 
 In parallel to the review of RFC-8, we will author sub-RFCs for each deferred feature that propose how they will be expressed using the core RFC-8 building blocks. 
 As we iterate on the design of RFC-8, we will update the sub-RFCs. 
-All deferred features will be defined in the v1.0 specification.
+All deferred features will be proposed and evaluated via the RFC process before the v1.0 specification is released.
 
 The following features are being deferred to sub-RFCs:
 
@@ -180,6 +180,7 @@ The following features are being deferred to sub-RFCs:
 | **Absolute and remote references** | Absolute paths and URLs, authentication and security |
 | **snake_case** | Making keys and identifiers consistent with Zarr |
 | **Legacy multiscales** | A `legacy_multiscale` node type for unchanged 0.5 and 0.6 images |
+| **Singlescale images** | A node type for images with a single resolution level. |
 
 ### Building blocks
 
