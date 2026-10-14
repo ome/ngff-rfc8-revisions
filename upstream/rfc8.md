@@ -314,7 +314,6 @@ A primary use case for the `attributes` field is the specialization of collectio
 Attribute keys that are defined as part of this RFC are:
 - `coordinateSystems`
 - `coordinateTransformations`
-- `labels`, as well as `labelValue` and `color` in label attributes
 - `plate`, `well`, `acquisition` for HCS metadata
 
 Attribute keys within the `attributes` dictionary of nodes are an extension point. Custom extensions can add prefixed keys (e.g., `neuroglancer:shader`, `webknossos:settings`). See [Extensions](#extensions) for more details.
@@ -666,76 +665,6 @@ and the spatial information pertaining to the collection of images (which is sto
 These "new and modified core classes" could become concrete extensions
 under Damien's proposal
 -->
-
-#### Label maps and other derived images
-
-Previous versions of the OME-Zarr specification defined a mechanism for associating label images with a single multiscale image.
-This was achieved by using a `labels` Zarr group that had to be a direct child of the multiscale Zarr group with some specific metadata.
-This proposal replaces this mechanism.
-
-To denote a multiscale image as a label map, the `labels` attribute MUST be present.
-If present, the value of the `labels` attribute MUST be an object with the following fields:
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"labelAttributes"` | array of objects | no | Attributes for individual labels. Each object MUST be a [`Label Attributes` object](#label-attributes-interface).
-| `"source"` | array of strings | no | An array with [`Reference`s](#reference-interface) to the source multiscales. |
-
-Because no fields are required, an empty object MAY be used.
-
-In this proposal, the previous `colors` and `properties` fields are combined into a single `labelAttributes` field.
-The `rgba` field in the `colors` objects has been renamed to `color`.
-
-##### `Label Attributes` interface
-
-The `labelAttributes` field is an array of objects with the following fields:
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"labelValue"` | number | yes | Value MUST be the label value. |
-| `"color"` | array of number | no | Value MUST be a color in array format. |
-
-If present, the `color` field MUST have an array with four integers between 0 and 255, inclusive. These integers represent the uint8 values of red, green, blue and alpha.
-
-Additional keys MAY be added, [following the attribute key naming rules](#extensions).
-
-The previous `label-value` key is now renamed to `labelValue` for consistency.
-
-
-##### Example
-
-```jsonc
-{
-    "ome": {
-        "version": "0.x",
-        "type": "collection",
-        "name": "label-example",
-        "attributes": { ... },
-        "nodes": [{
-            "id": "raw",
-            "name": "raw",
-            "type": "multiscale",
-            "nodes": [ ... ]
-        }, {
-            "name": "nuclei",
-            "type": "multiscale",
-            "nodes": [ ... ],
-            "attributes": {
-                "labels": {
-                    "source": [ {"id": "raw"} ],
-                    "labelAttributes": [{
-                        "labelValue": 1,
-                        "color": [ 255, 0, 0, 255 ]
-                    }, {
-                        "labelValue": 2,
-                        "color": [ 0, 255, 0, 255 ]
-                    }]
-                }
-            }
-        }]
-    }
-}
-```
 
 #### High-content screening (HCS) metadata
 
@@ -1182,8 +1111,7 @@ While the segmentation would now be published on its own, it could still be publ
 When processing images in the OME-Zarr format, a diversity of derived data like segmentation, probability maps, meshes, tables and other formats can be generated.
 This proposal does not intend to provide a specification to all these datatypes, but to define the metadata of how related data in Zarr or other formats can be linked to OME-Zarr images.
 
-Because there is already a specification for labels in the spec, the label definition is broadened by this spec.
-For other datatypes like tables, [past proposals](https://github.com/ome/ngff/pull/64) have focused on how tables can be serialised to OME-Zarr.
+For  past proposals that have proposed adding datatypes such as [tables](https://github.com/ome/ngff/pull/64) have focused on how tables can be serialised to OME-Zarr.
 As these proposals did not proceed to become part of the OME-Zarr spec, different implementers have built their own sub-specs for tables (see e.g. the [ngio table definition](https://fractal-analytics-platform.github.io/ngio/v0.3.2/table_specs/overview/) coming from the Fractal project or the [label table](https://mobie.github.io/specs/mobie_spec.html#table-data) in MoBIE).
 While future proposals and extensions may define datatypes like tables more strictly, this proposal offers a general way to make such additional data types discoverable.
 
