@@ -143,6 +143,7 @@ illustrating individual aspects of the proposal, e.g.:
     "ome": {
         "version": "0.x",
         "type": "multiscale",
+        "id": "01a13520-b697-70c4-979b-b52c01fbbe30",
         "name": "our_first_example",
         "nodes": [
           {
@@ -162,6 +163,25 @@ illustrating individual aspects of the proposal, e.g.:
 More complete examples showing how these components can be combined to support
 the use cases described in the Background are provided later in the document.
 
+### Features deferred to subsequent sub-RFC
+
+This RFC will defer the definition of some features to forthcoming sub-RFCs. 
+In doing so, we aim to help reviewers focus on providing feedback on the core building being defined in this RFC. 
+In parallel to the review of RFC-8, we will author sub-RFCs for each deferred feature that propose how they will be expressed using the core RFC-8 building blocks. 
+As we iterate on the design of RFC-8, we will update the sub-RFCs. 
+All deferred features will be proposed and evaluated via the RFC process before the v1.0 specification is released.
+
+The following features are being deferred to sub-RFCs:
+
+| Topic | Scope |
+|---|---|
+| **HCS** | Plate and well traits |
+| **Labels** | Label image traits and per-label properties |
+| **bioformats2raw and OME-XML** | Series layout and the OME/METADATA.ome.xml mapping |
+| **Absolute and remote references** | Absolute paths and URLs, authentication and security |
+| **snake_case** | Making keys and identifiers consistent with Zarr |
+| **Legacy multiscales** | A `legacy_multiscale` node type for unchanged 0.5 and 0.6 images |
+| **Singlescale images** | A node type for images with a single resolution level. |
 
 ### Building blocks
 
@@ -274,8 +294,7 @@ only valid for a node in the context of a collection (e.g. rendering settings).
 
 This RFC defines a basic interface for an OME-Zarr metadata object, which we
 name `Node`. The [Node interface](#node) is a consistent JSON structure for
-several different types of OME-Zarr metadata object, where fields specific to
-the node type are inside an attributes field, and the root only stores
+several different types of OME-Zarr metadata object and the root only stores
 information used for identifying and referencing the object.
 
 (rfcs:rfc8:abstract-structure-node-schema)=
@@ -286,9 +305,9 @@ Objects that implement `Node` have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be a string identifying the node type. |
-| `"id"` | string | no | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. IDs MUST be unique within the JSON document. |
-| `"name"` | string | yes | Value MUST be a non-empty string intended for human-readable display. Names MUST be unique within the enclosing collection. |
-| `"attributes"` | object | no | Value MUST be a dictionary. [See attributes section](#attributes) |
+| `"id"` | string | yes | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. Value MUST be a UUID. IDs MUST be unique within the JSON document. |
+| `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. Names MUST be unique within the enclosing collection. |
+| `"traits"` | object | no | Value MUST be a dictionary. [See traits section](#traits) |
 
 (rfcs:rfc8:abstract-structure-node-field-type)=
 
@@ -305,18 +324,17 @@ The `type` field of a `Node` is an extension point. For detail on how to extend 
 A `Node` object may be used as the root object of the `ome` key, in which case a `version` field, as defined in previous spec versions, is also required.
 Non-root `Node` objects SHOULD NOT have a `version` field and MUST NOT have a different `version` value than the root `Node`.
 
-(rfcs:rfc8:abstract-structure-attributes)=
-#### Attributes
+(rfcs:rfc8:abstract-structure-traits)=
+#### Traits
 
-Each `Node` has an `attributes` field that can be populated with JSON metadata.
-A primary use case for the `attributes` field is the specialization of collections and nodes through additional metadata.
+Each `Node` has a `traits` field that can be populated with JSON metadata.
+A primary use case for the `traits` field is the specialization of collections and nodes through additional metadata.
 
-Attribute keys that are defined as part of this RFC are:
+Traits that are defined as part of this RFC or sub-RFCs are:
 - `coordinateSystems`
 - `coordinateTransformations`
-- `plate`, `well`, `acquisition` for HCS metadata
 
-Attribute keys within the `attributes` dictionary of nodes are an extension point. Custom extensions can add prefixed keys (e.g., `neuroglancer:shader`, `webknossos:settings`). See [Extensions](#extensions) for more details.
+Trait keys within the `traits` dictionary of nodes are an extension point. Custom extensions can add prefixed keys (e.g., `neuroglancer:shader`, `webknossos:settings`). See [Extensions](#extensions) for more details.
 
 #### Metadata storage
 
@@ -336,6 +354,7 @@ This is particularly useful for defining the nodes that are stored within a Zarr
             // Our `collection`-typed node attributes
             // are listed here
             "type": "collection",
+            "id": "01a1354d-7cd7-724f-96d6-29c9d60bbf28",
             "name": "zarr.json-example",
             "nodes": [...]
         }
@@ -357,6 +376,7 @@ Standalone files are useful for persisting groupings of images that may or may n
         // Our `collection`-typed node attributes
         // are listed here
         "type": "collection",
+        "id": "01a1354d-7cd7-7658-95d8-4f1e9cadc9c6",
         "name": "standalone-example",
         "nodes": [...]
     }
@@ -369,8 +389,7 @@ Standalone files are useful for persisting groupings of images that may or may n
 Building on the core building blocks and the abstract structure, the following
 sections define concrete node types for collections, single-scale images, and
 multiscale images, and integrate coordinate systems and transformations from
-RFC-5. Existing OME-Zarr structures such as multiscales and
-bioformats2raw.layout are reworked within the Node/Collection-based framework.
+RFC-5. Existing OME-Zarr structures such as multiscales are reworked within the Node/Collection-based framework.
 
 (rfcs:rfc8:collection-node)=
 #### `Collection` node
@@ -390,11 +409,11 @@ also be absolute and point to remote storage.
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"collection"`. |
-| `"id"` | string | no | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. IDs MUST be unique within the JSON document. |
-| `"name"` | string | yes | Value MUST be a non-empty string intended for human-readable display. Names MUST be unique within the enclosing collection. |
+| `"id"` | string | yes | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. Value MUST be a UUID. IDs MUST be unique within the JSON document. |
+| `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. Names MUST be unique within the enclosing collection. |
 | `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"attributes"` | object | no | Value MUST be a dictionary. [See attributes section](#attributes). |
+| `"traits"` | object | no | Value MUST be a dictionary. [See traits section](#traits). |
 
 Either `"nodes"` or `"path"` MUST be present, but not both.
 
@@ -403,6 +422,7 @@ Either `"nodes"` or `"path"` MUST be present, but not both.
   "ome": {
       "version": "0.x",
       "type": "collection",
+      "id": "01a13543-f211-74ac-b6d8-da304a733e68",
       "name": "proj_gallery",
       "nodes": [{
           "type": "collection",
@@ -474,11 +494,11 @@ This new interface replaces the multiscale metadata defined in the previous vers
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"multiscale"`. |
-| `"id"` | string | no | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. IDs MUST be unique within the JSON document. |
-| `"name"` | string | yes | Value MUST be a non-empty string intended for human-readable display. Names MUST be unique within the enclosing collection. |
+| `"id"` | string | yes | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. Value MUST be a UUID. IDs MUST be unique within the JSON document. |
+| `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. Names MUST be unique within the enclosing collection. |
 | `"nodes"` | array | no | Value MUST be an array of `Singlescale` objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"attributes"` | object | yes | Value MUST be a dictionary. [See attributes section](#attributes). Required because it MUST contain `coordinateSystems`.|
+| `"traits"` | object | yes | Value MUST be a dictionary. [See traits section](#traits). Required because it MUST contain `coordinateSystems`.|
 
 Either `"nodes"` or `"path"` MUST be present, but not both.
 
@@ -487,6 +507,7 @@ Either `"nodes"` or `"path"` MUST be present, but not both.
     "ome": {
         "version": "0.x",
         "type": "multiscale",
+        "id": "01a1354c-9611-72bb-b440-6db340b0f0bd",
         "name": "imagepyramid1",
         "nodes": [
           {
@@ -497,7 +518,7 @@ Either `"nodes"` or `"path"` MUST be present, but not both.
               "type": "zarr",
               "path": "./s0"
             },
-            "attributes": {
+            "traits": {
               ...
             }
           },
@@ -537,8 +558,8 @@ In a change from the previous specification, coordinate systems are referenced u
     "version": "0.x",
     "type": "collection",
     "name": "Tiles",
-    "id": "tiles",
-    "attributes": {
+    "id": "01a1354d-7cd7-78c5-bda9-cb72c508924d",
+    "traits": {
       "scene": {
         "coordinateSystems": [
           {
@@ -577,7 +598,7 @@ In a change from the previous specification, coordinate systems are referenced u
     "nodes": [
       {
         "type": "multiscale",
-        "id": "tile_0",
+        "id": "01a1354d-7cd7-70c1-ba68-99bbccce4122",
         "name": "Tile 0",
         "path": {
           "type": "zarr",
@@ -585,7 +606,7 @@ In a change from the previous specification, coordinate systems are referenced u
         }
       },
       {
-        "type": "multiscale",
+        "type": "01a1354d-7cd7-7dc3-b31d-f5f168a71e87",
         "id": "tile_1",
         "name": "Tile 1",
         "path": {
@@ -648,292 +669,23 @@ the following requirements apply:
   If the referenced coordinate system is in a different metadata document, both the `id` and `path` fields MUST be present.
 
 
-##### `Scene` attribute
+##### `Scene` trait
 
-The `scene` attribute MUST be an object with the following fields:
+The `scene` trait MUST be an object with the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"coordinateSystems"` | array | no | Values MUST be valid instances of [`Coordinate System`](#coordinate-system-interface) objects. |
 | `"coordinateTransformations"` | array | yes | Values MUST be valid instances of [`Coordinate transformation`](#coordinate-transformation-interface) objects |
 
-A `scene` metadata object can be defined in the `attributes` of a collection to enrich the collection with spatial information of the nodes within the collection.
-The `scene` field allows to clearly distinguish between the spatial information pertaining to an individual multiscale image (which is stored in the `attributes` of the multiscale)
-and the spatial information pertaining to the collection of images (which is stored in the `attributes` of the collection).
+A `scene` metadata object can be defined in the `traits` of a collection to enrich the collection with spatial information of the nodes within the collection.
+The `scene` field allows to clearly distinguish between the spatial information pertaining to an individual multiscale image (which is stored in the `traits` of the multiscale)
+and the spatial information pertaining to the collection of images (which is stored in the `traits` of the collection).
 
 <!--
 These "new and modified core classes" could become concrete extensions
 under Damien's proposal
 -->
-
-#### High-content screening (HCS) metadata
-
-High-content screening data is typically organized as a grid of wells on a plate, where each well contains one or more multiscale images from one or more acquisition rounds.
-This section introduces additional metadata for organizing wells on a plate.
-
-This proposal changes the HCS references from numeric IDs and names to string-based ID references, consistent with the [References mechanism](#reference-interface) defined above.
-
-##### `Plate` attribute
-
-A `collection` node representing a plate MUST have a `plate` attribute with the following fields:
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"acquisitions"` | array of objects | no | List of acquisitions performed on the plate. Each object MUST be [`Acquisition` objects](#acquisition-interface). |
-| `"columns"` | array of objects | yes | List of columns in the plate. Each object MUST be [`Column` objects](#column-interface). |
-| `"rows"` | array of objects | yes | List of rows in the plate. Each object MUST be [`Row` objects](#row-interface). |
-
-##### `Acquisition` interface
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"id"` | string | yes | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. IDs MUST be unique within the JSON document. |
-| `"name"` | string | no | A human-readable name for the acquisition. |
-
-##### `Column` interface
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"id"` | string | yes | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. IDs MUST be unique within the JSON document. |
-| `"name"` | string | no | A human-readable name for the column. |
-
-##### `Row` interface
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"id"` | string | yes | Value MUST be a string that matches `[a-zA-Z0-9-_.]+`. IDs MUST be unique within the JSON document. |
-| `"name"` | string | no | A human-readable name for the row. |
-
-##### `Well` attribute
-
-A `collection` node representing a well MUST have a `well` attribute with the following fields:
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"column"` | string | yes | Value MUST be a [`Reference`](#reference-interface) to one of the columns listed in the `plate` attribute on the enclosing plate-level collection. |
-| `"row"` | string | yes | Value MUST be a [`Reference`](#reference-interface) to one of the rows listed in the `plate` attribute on the enclosing plate-level collection. |
-
-##### `Acquisition` attribute
-
-The `acquisition` attribute MUST be a [`Reference`](#reference-interface) to one of the acquisitions.
-It MAY be set on individual `multiscale` nodes within a well or on a `collection` sub-node grouping all images from a single acquisition.
-
-We suggest two possible layouts for HCS data, which are not mutually exclusive and can be used in combination: a "wide" layout where all images are direct children of the well collection and a "tall" layout where images are grouped in sub-collections by acquisition.
-
-##### Wide example (acquisitions flat in the well)
-
-In this layout, all multiscale nodes are direct children of the well collection.
-Each node carries an `acquisition` attribute.
-Derived images such as label maps are siblings of their source image and can still be linked via the `source` reference in their `labels` attribute. This layout is more compact but can become cluttered when there are multiple acquisitions and derived nodes.
-
-```jsonc
-{
-    "ome": {
-        "version": "0.x",
-        "type": "collection",
-        "name": "hcs-plate-001",
-        "attributes": {
-            "plate": {
-                "acquisitions": [
-                    {
-                        "id": "acq_0",
-                        "name": "Acquisition Round 1"
-                    }
-                ],
-                "columns": [
-                    {
-                        "id": "1",
-                        "name": "1"
-                    }
-                ],
-                "rows": [
-                    {
-                        "id": "A",
-                        "name": "A"
-                    }
-                ]
-            }
-        },
-        "nodes": [
-            {
-                "type": "collection",
-                "name": "well A01",
-                "attributes": {
-                    "well": {
-                        "column": {"id": "1"},
-                        "row": {"id": "A"}
-                    }
-                },
-                "nodes": [
-                    {
-                        "id": "A01_0",
-                        "type": "multiscale",
-                        "name": "A01_0",
-                        "path": {
-                            "type": "zarr",
-                            "path": "./A/01/001.img"
-                        },
-                        "attributes": {
-                            "acquisition": {"id": "acq_0"}
-                        }
-                    },
-                    {
-                        "type": "multiscale",
-                        "name": "A01_0_ill_corrected",
-                        "path": {
-                            "type": "zarr",
-                            "path": "./A/01/001_ill_corrected.img"
-                        },
-                        "attributes": {
-                            "acquisition": {"id": "acq_0"},
-                            "source": [{"id": "A01_0"}]
-                        }
-                    },
-                    {
-                        "type": "multiscale",
-                        "name": "A01_0_nuclei",
-                        "path": {
-                            "type": "zarr",
-                            "path": "./A/01/001_nuclei.img"
-                        },
-                        "attributes": {
-                            "acquisition": {"id": "acq_0"},
-                            "labels": {
-                              "source": [{"id": "A01_0"}]
-                            }
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-}
-```
-
-##### Tall example (acquisitions as sub-collections)
-
-In this layout, each acquisition is wrapped in a sub-collection inside the well.
-The `acquisition` attribute is set on the sub-collection rather than on individual nodes.
-This serves as an example that wells can consist of collections, not just multiscales.
-
-```jsonc
-{
-    "ome": {
-        "version": "0.x",
-        "type": "collection",
-        "name": "hcs-plate-001",
-        "attributes": {
-            "plate": {
-                "acquisitions": [
-                    {
-                        "id": "acq_0",
-                        "name": "Acquisition Round 1"
-                    },
-                    {
-                        "id": "acq_1",
-                        "name": "Acquisition Round 2"
-                    }
-                ],
-                "columns": [
-                    {
-                        "id": "1",
-                        "name": "1"
-                    }
-                ],
-                "rows": [
-                    {
-                        "id": "A",
-                        "name": "A"
-                    }
-                ]
-            }
-        },
-        "nodes": [
-            {
-                "type": "collection",
-                "name": "well A01",
-                "attributes": {
-                    "well": {
-                        "column": {"id": "1"},
-                        "row": {"id": "A"}
-                    }
-                },
-                "nodes": [
-                    {
-                        "type": "collection",
-                        "name": "A01_acq0",
-                        "attributes": {
-                            "acquisition": {"id": "acq_0"}
-                        },
-                        "nodes": [
-                            {
-                                "id": "A01_0",
-                                "type": "multiscale",
-                                "name": "A01_0",
-                                "path": {
-                                    "type": "zarr",
-                                    "path": "./A/01/001.img"
-                                }
-                            },
-                            {
-                                "type": "multiscale",
-                                "name": "A01_0_nuclei",
-                                "path": {
-                                    "type": "zarr",
-                                    "path": "./A/01/001_nuclei.img"
-                                },
-                                "attributes": {
-                                    "labels": {
-                                        "source": ["A01_0"]
-                                    }
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "type": "collection",
-                        "name": "A01_acq1",
-                        "attributes": {
-                            "acquisition": {"id": "acq_1"}
-                        },
-                        "nodes": [
-                            {
-                                "id": "A01_1",
-                                "type": "multiscale",
-                                "name": "A01_1",
-                                "path": {
-                                    "type": "zarr",
-                                    "path": "./A/01/002.img"
-                                }
-                            },
-                            {
-                                "type": "multiscale",
-                                "name": "A01_1_nuclei",
-                                "path": {
-                                    "type": "zarr",
-                                    "path": "./A/01/002_nuclei.img"
-                                },
-                                "attributes": {
-                                    "labels": {
-                                        "source": [{"id": "A01_1"}]
-                                    }
-                                }
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
-}
-```
-
-While inlined plate collections are shown above for simplicity, an on-disk plate collection could still refer to separate on-disk collections within each well that carry a `well` attribute.
-
-#### `bioformats2raw.layout` metadata
-
-The `bioformats2raw.layout` metadata is replaced by this proposal.
-A series of images can now be represented as a collection of multiscale images.
 
 ## Extensions
 
@@ -2002,17 +1754,8 @@ is still a design), how will you track that these will be created?
 
 ### Backwards compatible
 
-This proposal is intended to replace the existing labels, HCS and
-bioformats2raw.layout structures with the new extensibility framework. The
-proposed structures do not yet provide full backwards-compatible coverage of
-all information represented by these existing formats. For example, some
-information currently represented by HCS or bioformats2raw.layout is not yet
-represented in the proposed structures.
-
-These gaps are intended to be addressed through further discussion and, where
-appropriate, through extensions to the framework. The community is encouraged
-to contribute such extensions so that existing metadata can be represented
-without loss, together with appropriate upgrade mechanisms for existing data.
+The v1.0 goal is to replace the existing labels, HCS and
+bioformats2raw.layout structures with the new extensibility framework. Expressing these data using RFC-8 extensibility framework will be discussed in topic-specific sub-RFCs. See the "Features deferred to subsequent sub-RFC” section for details.
 
 ### Forward compatible
 Existing implementations need to be updated to be able to understand the new collection objects.
