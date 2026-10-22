@@ -22,6 +22,7 @@ This proposal is early. Status: D1
 | Johannes Soltwedel | [jo-mueller](https://github.com/jo-mueller) | German BioImaging e.V. | 2025-10-28 | Author |
 | Christian Tischer | [tischi](https://github.com/tischi) | EMBL | 2025-02-01 | Contributor |
 | Matthew Hartley | [matthewh-ebi](https://github.com/matthewh-ebi) |  EMBL-EBI | 2025-05-05 | Contributor |
+| Damien Goutte-Gattat | [gouttegd](https://github.com/gouttegd) | German BioImaging e.V. | 2026-10-22 | Author |
 
 <!--
 | Author    | N/A           | N/A         | xxxx-xx-xx | Author; Implemented (link to release) |
@@ -45,7 +46,7 @@ reading this paragraph(s).
 
 This proposal introduces a general extensibility mechanism for OME-Zarr
 metadata. It defines a common Node interface, a system for referencing nodes
-locally and remotely, and a naming scheme that allows OME-Zarr to be extended
+locally and remotely, and an extension scheme that allows OME-Zarr to be extended
 with new node types and metadata while maintaining interoperability.
 
 The mechanism also provides a general way to represent collections: groups of
@@ -374,7 +375,7 @@ Objects that implement `Node` have the following fields:
 | `"type"` | string | yes | Value MUST be a string identifying the node type. |
 | `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
-| `"traits"` | object | no | Value MUST be a dictionary. [See traits section](#traits) |
+| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits) |
 
 (rfcs:rfc8:abstract-structure-node-field-type)=
 
@@ -542,7 +543,7 @@ referenced by paths instead of relying on a file system hierarchy.
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"traits"` | object | no | Value MUST be a dictionary. [See traits section](#traits). |
+| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
 
 Either `"nodes"` or `"path"` MUST be present, but not both.
 
@@ -631,7 +632,7 @@ This new interface replaces the multiscale metadata defined in the previous vers
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"nodes"` | array | no | Value MUST be an array of `Singlescale` objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"traits"` | object | yes | Value MUST be a dictionary. [See traits section](#traits). Required because it MUST contain `coordinateSystems`.|
+| `"traits"` | object | yes | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
 
 Either `"nodes"` or `"path"` MUST be present, but not both.
 
@@ -654,9 +655,9 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
               "format": "relative",
               "href": "./s0"
             },
-            "traits": {
+            "traits": [
               ...
-            }
+            ]
           },
           ...
         ]
@@ -706,8 +707,9 @@ Each `input` and `output` is a typed [`Reference`](#reference-interface) that na
     "type": "collection",
     "name": "Tiles",
     "id": "01a1354d-7cd7-78c5-bda9-cb72c508924d",
-    "traits": {
-      "scene": {
+    "traits": [
+      {
+        "type": "scene",
         "coordinateSystems": [
           {
             "type": "coordinate_system",
@@ -753,7 +755,7 @@ Each `input` and `output` is a typed [`Reference`](#reference-interface) that na
           }
         ]
       }
-    },
+    ],
     "nodes": [
       {
         "type": "multiscale",
@@ -1345,19 +1347,29 @@ A gallery view could also be represented within the proposed collection JSON as 
 
 Note that the grid view is modelled here as a collection of collections, where the collection at each grid position includes the raw EM image and the mitochondria segmentation label mask image.
 
-Also note some MoBIE specific attributes:
-
-- `"mobie:grid": "true"` specifies that the data should be laid out in a grid.
+Also note the presence of a MoBIE-specific extension, which adds a MoBIE-specific trait to the collection speciying that the data should be laid out in a grid.
 
 ```jsonc
 {
     "ome": {
         "version": "0.x",
+        "extensionManifest": [
+            {
+                "id": "https://mobie.example.org/settings/",
+                "version": "0.1",
+                "name": "MoBIE FIJI viewer visualisation settings",
+                "description": "An extension to store MoBIE-specific settings into a OME-Zarr image",
+                "homepage": "https://mobie.example.org/",
+                "schemas": [
+                    {
+                        "type": "jsonschema",
+                        "url": "https://mobie.example.org/ngff/schemas/settings-0.1.json"
+                    }
+                ]
+            }
+        ],
         "type": "collection",
         "name": "openorganelle-mito-gallery",
-        "attributes": {
-            "mobie:grid": "true"
-        },
         "nodes": [
             {
                 "name": "jrc_hela-3",
@@ -1431,7 +1443,13 @@ Also note some MoBIE specific attributes:
                     }
                 ]
             }
-        ]
+        ],
+        "traits": [
+            {
+                "type": "https://mobie.example.org/settings/DisplaySettings",
+                "grid": true
+            }
+        ],
     }
 }
 ```
@@ -1833,7 +1851,7 @@ To keep complexity manageable, we would need to heavily restrict which parts of 
 This creates a lose-lose situation: JSON-LD experts may be confused by the deviations from standard JSON-LD, while users unfamiliar with JSON-LD would still need to learn both JSON-LD concepts and the OME-NGFF-specific extensions.
 The learning curve would be higher than with a purpose-built format, without corresponding benefits in return.
 
-For these reasons, the RFC adopts a simpler custom format with a prefix-based naming scheme instead of JSON-LD.
+For these reasons, the RFC adopts a simpler custom format and a custom type system which, while somewhat reminiscent of JSON-LD on some aspects (the `extension_manifest` is partially akin to a JSON-LD `@context`), is distinct enough not to mislead users into believing that OME-Zarr JSON files are actually JSON-LD files.
 
 ### Custom types identified by prefixed keywords
 
