@@ -381,7 +381,8 @@ Objects that implement `Node` have the following fields:
 
 ##### Field: `type`
 
-The `type` field of a `Node` defines its structure and semantics, including any additional fields it might have.
+The `type` field of a `Node` defines its structure, including any additional fields it might have.
+The function of a node is expressed through its [traits](#traits).
 This RFC defines three node types: `collection`, `multiscale`, and `singlescale`.
 
 The `type` field of a `Node` is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
@@ -395,9 +396,15 @@ Non-root `Node` objects SHOULD NOT have a `version` field and MUST NOT have a di
 (rfcs:rfc8:abstract-structure-traits)=
 #### Traits
 
-Each `Node` has a `traits` field that accepts a list of `Trait` objects. A trait is an object that can be used to enrich any `Node` with arbitrary metadata. A primary use case for traits is the specialization of collections and nodes.
+Each `Node` has a `traits` field that accepts a list of `Trait` objects.
+The node type and the traits of a node have separate roles.
+The node type defines the structure of a node: which fields it has and how readers traverse it and resolve its children.
+Traits define the function of a node: what the data represents and how it relates to other nodes, e.g. that a collection is a plate, a well or a scene, or that an image contains labels.
+A node may carry any number of traits, so independent aspects can be combined on the same node without defining a new node type for each combination.
 
 Each trait has minimally a `type` field, which dictates how the trait should be interpreted and defines the other fields it may contain.
+Trait fields are stored inside the trait object, not on the node.
+Readers that do not understand a trait MAY ignore it and still traverse the node based on its node type.
 
 This RFC defines one type of trait: [`scene`](#scene-trait).
 
@@ -864,6 +871,9 @@ An extension MUST have a unique identifier, which SHOULD be an absolute URI that
 All custom types defined by an extension MUST have their own unique identifier, which MUST be built by appending a type-specific suffix (the type’s _local name_, within the context of the extension that defines it) to the extension’s identifier.
 
 > For example, if an extension with the identifier `https://example.org/my-ngff-extension/` defined a new type of coordinate transformation named `NonLinearTransform`, the identifier for the new type would be `https://example.org/my-ngff-extension/NonLinearTransform`, with `NonLinearTransform` being the type’s local name.
+
+Extensions that add functions to existing structures SHOULD define new trait types rather than new node types.
+New node types are intended for data whose structure cannot be represented by the existing node types.
 
 ### Extension points
 
@@ -1864,6 +1874,29 @@ This was abandoned in favour of (1) mandating that custom types be identified by
 An initial version of this RFC proposed that third parties could append custom metadata to any node by adding prefixed keys to an `attributes` dictionary carried by every node, where the prefix has been previously registered into a registry maintained by the community (as for custom types, see previous section).
 
 This was abandoned in favour of the [trait](#traits) concept.
+
+### Subtyped node types
+
+An alternative to traits was to specialize nodes through subtypes, e.g. a `PlateCollection`, `WellCollection` or `SceneCollection` that extends `collection` and carries the additional fields directly on the node.
+This has the appeal that the node type alone states what a node is, and that mutually exclusive specializations such as plate and well are exclusive by construction.
+
+However, real data often combines independent aspects, e.g. a well whose fields of view form a scene, or a segmentation derived from a remote image.
+With subtypes, every such combination needs its own named type, and the number of types grows combinatorially with each new aspect.
+Multiple inheritance could avoid naming every combination up front.
+But it puts the fields of all parents into one namespace and needs rules for resolving conflicts between parents.
+It also still requires a named type per combination, so done properly it ends up close to traits.
+A single-inheritance hierarchy, on the other hand, forces arbitrary decisions, such as whether a well is a kind of scene or the other way round, that are hard to change later.
+
+Subtypes also degrade poorly.
+A reader that does not know an extension subtype cannot interpret the node at all.
+With traits, the node type stays a known core type, so the data can still be traversed and displayed while unknown traits are ignored.
+Traits further allow partial support and modular validation: an implementation can support a subset of traits, and each trait is validated against its own schema.
+Finally, previous versions of the specification already compose metadata on one group (`multiscales`, `labels`, `omero`), and traits keep that model.
+
+This was abandoned in favour of the [trait](#traits) concept, which is inspired by traits in Rust and comparable to interfaces in Java and extensions in STAC.
+Node types describe structure (how a node is traversed) and traits describe meaning.
+Exclusivity between traits has to be stated explicitly in the trait specifications.
+Extensions may still define new node types for structures that the core node types do not cover.
 
 
 <!--
