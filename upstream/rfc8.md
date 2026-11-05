@@ -2286,8 +2286,29 @@ Within the collections proposal, there are also opportunities for standardizing 
 
 Future work:
 
-- Defining formal mechanism for extensions
 - Implementing the [URL pipeline specification](https://github.com/jbms/url-pipeline) proposed by Jeremy Maitin-Shephard
+
+### Extensibility
+
+Future work on the extensibility system will be likely to include:
+
+**Revising the `mustUnderstand` flag.** In particular,
+
+- is a boolean flag enough, or should we allow for more requirement levels?
+- the `mustUnderstand` flag is currently set at the level of an entire extension, and applies to all custom types defined by that extension; should we allow a finer, per-type granularity?
+- is that flag really needed at all?
+
+This will likely happen in future revisions of the present RFC.
+
+**Limiting where specific traits can be used.** In the current proposal, any custom trait can be used on any node. We may consider a system (to be designed) allowing to express constraints about which trait can be used on which node type.
+
+If such a system is thought to be desirable, it will likely be added in future revisions of the present RFC.
+
+**Defining an extension management strategy.** The present RFC is deliberately silent on the issue on _how_ extensions will be managed – it merely defines the extensibility system and states that, on a technical level, anyone can create an extension.
+
+Future RFCs may define a strategy for the community to actually manage the extensions – which will be required to avoid, as much as possible, the uncontrolled proliferation of possibly redundant extensions.
+
+Given that we strongly recommend that extensions are identified by a URI-based identifier, we envision a system where URI namespaces could be used to distinguish between extensions depending on their level of community support. For example, while the general rule would remain that anyone can create an extension, there could be a dedicated namespace (e.g. `https://community-extensions.openmicroscopy.org/`) in which an extension ID can only be minted with some level of approval from the community. How this approval should be sought and granted remains to be defined and is out of scope for the present RFC, but the important point here is that such a strategy can easily be added on top of the mechanism defined here, without requiring any changes to said mechanism – because a “community-approved” extension would _not_, technically, be any different from any other extension.
 
 <!--
 Think about what the natural extension and evolution of your proposal would be
