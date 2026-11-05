@@ -2244,6 +2244,51 @@ The design of the [extensibility mechanism](#extensions) was influenced by:
 - the [OME-Zarr Extensibility Manifesto](https://github.com/gouttegd/yamf-playground/blob/main/ome-zarr/EXTENSIBILITY_MANIFESTO.md), which is itself the result of a discussion that took place in an OME-Zarr hackathon held in Heidelberg in June 2026; the [“Rationale” section](#rationale-for-ome-zarr-extensions) in the present RFC is essentially a condensed version of that document;
 - the [Proposal for a generic extensibility scheme](https://github.com/gouttegd/yamf-playground/blob/main/EXTENSIBILITY.md) – what this RFC calls a “trait” is essentially what that proposal called a “class extension”.
 
+### Zarr Extensions & Zarr Conventions
+
+The underlying Zarr format has its own mechanisms to support extensibility. Specifically, it has a concept of “Zarr Extensions”, formally defined in the [Zarr specification](https://zarr-specs.readthedocs.io/en/latest/v3/core/index.html#extensions), as well as a concept of [“Zarr Conventions”](https://github.com/zarr-conventions/zarr-conventions-spec/tree/v1), a community-driven initiative to allow defining additional and optional metadata attributes.
+
+Briefly, the most important characteristics of the Zarr-level mechanisms are:
+
+* Zarr Extensions
+    * can only be used at specification-defined extension points;
+    * must be registered into a dedicated GitHub repository prior to being used in any implementation;
+    * may be refused registration at the discretion of the Zarr Steering Council;
+    * avoid naming conflicts between independently developed extensions through the aforementioned registration step (no one can register an extension with the same name as a previously registered extension).
+* Zarr Conventions
+    * can only define new keys in the `attributes` dictionary (or into subdictionaries within the `attributes` dictionary);
+    * are only intended for optional, safely ignorable data;
+    * do not require any approval and can be freely created by anyone;
+    * must be declared in any Zarr file in which they are used through a dedicated top-level `zarr_conventions` dictionary;
+    * may be registered into a dedicated GitHub repository;
+    * have no mechanisms to avoid naming conflicts between independently developed Zarr Conventions.
+
+Because they are strictly reserved for Zarr-defined extension points, Zarr Extensions were not considered as a possible solution for OME-Zarr extensibility. Basically, Zarr Extensions are for Zarr-defined extension points and OME-Zarr extensions (as defined in the present RFC) are for OME-Zarr-defined extension points; OME-Zarr extensions do _not_ supersede or replace Zarr Extensions, which MUST still be used whenever one wants to extend a Zarr extension point (for example, defining a new Zarr codec CANNOT be done using an OME-Zarr extension).
+
+Zarr Conventions _were_ considered as a candidate mechanism for OME-Zarr extensibility. We rejected them for essentially three reasons: (a) there is a considerable misalignment between Zarr Conventions and our [desired characteristics](#desired-characteristics-for-ome-zarrs-extensibility-mechanism), (b) though it is _not_ listed as a “desired characteristic”, it is our intention that “OME-Zarr extensions” could be used in a broader OME context than just OME-Zarr, which precludes relying on a Zarr-specific mechanism; (c) the stability of the Zarr Conventions specification is unclear, notably as, according to the [governance document](https://github.com/zarr-conventions/zarr-conventions-spec/blob/main/GOVERNANCE.md), the specification of Zarr Conventions can be changed at anytime with the approval of two members of the Zarr Conventions’ “Core Developers Group” (CDG) – we believe that this falls short of the rigourous RFC process used for the OME-Zarr specification.
+
+Regarding point (a) above, the main misalignments were:
+
+**No support for `mustUnderstand`.** Zarr Conventions are explicitly intended for “safely ignorable” data only, and therefore have no mechanisms allowing an extension to self-declare whether it is in fact “safely ignorable” or not.
+
+**No mechanisms to avoid conflicts between independently developed extensions.** Each Zarr Convention has a unique identifier (either a UUID or, in the absence of a UUID, a URL), but the identifier only identifies the Zarr Convention itself – it is not used to distinguish the _keys_ that are defined by the convention. The keys defined by a Zarr Convention are distinguished from keys defined by other Zarr Conventions by either
+
+* a prefix freely choosen by the Zarr Convention’s author, that is prepended to every key;
+* moving all the keys in a subdictionary whose name is itself freely chosen by the Zarr Convention’s author.
+
+It is entirely left to the author of any given Zarr Convention to take care of choosing a prefix (or a subdictionary name) that will not conflict with any other Zarr Convention – something that may be difficult, or even impossible, to achieve given that, though a central registry of Zarr Conventions exists:
+
+* registration is not mandatory;
+* the registry does not allow to query Zarr Conventions by prefix (the “registry” is merely a list of links to GitHub repositories), meaning a Zarr Convention author wishing to check whether the prefix he was planning to use has not already been used (at least in the Zarr Conventions that have been registered) would have to iterate through the `README.md` of every registered Zarr Conventions – impractical and clearly not scalable.
+
+Furthermore, not only the Zarr Conventions specification does not prevent conflicting prefixes (again, leaving that responsibility to each Zarr Convention author), it is also silent as to what should happen when a naming conflict does occur.
+
+For example, if the creator of a Zarr fileset wants to use two Zarr Conventions that happen to use the same prefix (or the same subdictionary name), it is unclear whether (a) this is simply not possible or (b) the creator is allowed to unilateraly change the prefix (or subdictionary name) of one of the two Conventions so that it does not conflict with the other. If (b), then this creates a validation problem because the JSON-Schema that the Zarr Convention may provide to allow validating its data will _not_ be aware of the renaming.
+
+(Incidentally the latter point is an illustration of why trying to use prefixes in JSON as a poor man’s namespacing system is generally a bad idea. Prefixes work as a namespacing system in XML because XML has built-in support for prefixed namespaces; JSON has not.)
+
+Overall, the Zarr Conventions specification seems to have been designed under the optimistic assumption that name conflicts will be infrequent enough that they can safely be left to individual Zarr Conventions’ authors and/or to implementations to deal with. We believe that a proper extensibility system without mandatory central registration should be designed under the pessimistic assumption that name conflicts will happen all the time.
+
 <!--
 
 Is there any background material that might be helpful when reading this
