@@ -1485,6 +1485,14 @@ Also note the presence of a MoBIE-specific extension, which adds a MoBIE-specifi
 }
 ```
 
+### 11. Training crops cut from non-OME-Zarr sources
+
+Machine-learning pipelines train on small patches ("crops") cut from published datasets. The sources may be OME-Zarr images, but are often archived in other formats such as TIFF, MRC, HDF5 and N5. A data preparation pipeline downloads the files, cuts the planned crops at several resolution levels, writes them as OME-Zarr images, and finally tensorizes them for training.
+For reproducibility, four questions should be answerable from the metadata: how the image was made (software, environment, parameters, time); which file the voxels came from, and whether that file has changed since; where in the source volume each crop sits, at each level; and which parts of the image hold data and what was deliberately omitted.
+
+The first question is answered by a provenance record on the node, such as the [`provenance:` Zarr convention](https://github.com/BioImageTools/zarr-convention-provenance), which lists the steps that made it with their inputs and outputs as paths, URIs or identifiers. The other three are relationships, and a provenance record cannot express them: its references are strings, not references to declared objects with coordinate systems, so nothing ties "the file this image was cut from" to a frame or an extent, and nothing says that the raw image and its label share a frame other than a repeated coordinate-system name.
+
+With this proposal the volume is written as a collection rather than as one image with nested labels. The raw image and its label are sibling multiscales placed in a shared coordinate system by the `scene` trait. Each image names the file it was cut from with a reference to a node that stands for that file; the file's own array index space is a coordinate system of that node, so the crop offset is a transform between two declared frames rather than a convention. The planned crops are nodes with an extent and a reference to the image, not copies of its bytes. The provenance record stays beside `ome` in the node's attributes and names the same nodes by their `id`, so a reader can join how a node was made with what it is to the other nodes.
 
 ## Other Examples
 
@@ -2278,6 +2286,9 @@ Future additions include:
 
 - Additional node types, such as tables, meshes
 - Additional path formats, such as S3 URLs
+- A `source` trait on any node ("derived from"), and a node type for data that is not OME-Zarr (a path, possibly into an archive, and the data's own coordinate systems), so derived images can name what they came from across the format boundary (user stories 3, 9, 11)
+- Traits stating the extent of a node per resolution level and whether absent chunks are unwritten or fill, so sparse and sub-region images render correctly (user story 11)
+- A rule that a node's `id` is the identifier a provenance record (such as the `provenance:` Zarr convention) uses for it, so that process history and node relationships can be joined (user story 11)
 
 Within the collections proposal, there are also opportunities for standardizing further metadata:
 
