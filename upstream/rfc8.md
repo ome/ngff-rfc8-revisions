@@ -291,7 +291,7 @@ Every declaration MUST have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be the kind of the declared object, e.g. `"collection"`, `"multiscale"` or `"singlescale"` for nodes and `"coordinate_system"` for coordinate systems. |
-| `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. |
+| `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. IDs MAY be UUIDs. |
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
 Everywhere else, the object is referred to with a [`Reference`](#reference-interface).
@@ -375,7 +375,7 @@ Objects that implement `Node` have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be a string identifying the node type. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be a non-empty string that is unique within the JSON document. Value MAY be a UUID, in which case it SHOULD be a UUIDv7+. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits) |
 
@@ -548,7 +548,7 @@ referenced by paths instead of relying on a file system hierarchy.
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"collection"`. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be a non-empty string that is unique within the JSON document. Value MAY be a UUID, in which case it SHOULD be a UUIDv7+. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
@@ -590,7 +590,7 @@ This new interface replaces the dataset metadata defined in the previous version
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"singlescale"`. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be a non-empty string that is unique within the JSON document. Value MAY be a UUID, in which case it SHOULD be a UUIDv7+. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
 | `"attributes"` | object | yes | Value MUST be a dictionary. [See attributes section](#attributes). Required because it MUST contain `coordinateTransformations`.|
@@ -637,7 +637,7 @@ This new interface replaces the multiscale metadata defined in the previous vers
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"multiscale"`. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be a non-empty string that is unique within the JSON document. Value MAY be a UUID, in which case it SHOULD be a UUIDv7+. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"nodes"` | array | no | Value MUST be an array of `Singlescale` objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
@@ -802,7 +802,7 @@ The `Coordinate System` objects have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"coordinate_system"`. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be a non-empty string that is unique within the JSON document. Value MAY be a UUID, in which case it SHOULD be a UUIDv7+. |
 | `"name"` | string | no | More descriptive name for the coordinate system, if needed. |
 | `"axes"` | array of strings | yes | Value MUST be an array of axes, as defined in RFC-5. |
 
