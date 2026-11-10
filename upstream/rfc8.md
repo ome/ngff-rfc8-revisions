@@ -2253,7 +2253,7 @@ Briefly, the most important characteristics of the Zarr-level mechanisms are:
 * Zarr Extensions
     * can only be used at specification-defined extension points;
     * must be registered into a dedicated GitHub repository prior to being used in any implementation;
-    * may be refused registration at the discretion of the Zarr Steering Council;
+    * may be refused registration at the discretion of the Zarr Format Working Group (ZFWG);
     * avoid naming conflicts between independently developed extensions through the aforementioned registration step (no one can register an extension with the same name as a previously registered extension).
 * Zarr Conventions
     * can only define new keys in the `attributes` dictionary (or into subdictionaries within the `attributes` dictionary);
