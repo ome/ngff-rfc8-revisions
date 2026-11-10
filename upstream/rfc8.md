@@ -1575,6 +1575,8 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
       {
         "type": "scale",
         "scale": [0.9, 0.45, 0.45]
+        "input": "01a13e2d-61b2-7760-9c2a-1aef3d3eeed6",
+        "output": "01a13e2f-a19f-7735-9802-e48c70b1a089"
       }
     ]
   }
