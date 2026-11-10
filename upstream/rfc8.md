@@ -146,7 +146,7 @@ illustrating individual aspects of the proposal, e.g.:
         "type": "multiscale",
         "id": "01a13520-b697-70c4-979b-b52c01fbbe30",
         "name": "our_first_example",
-        "nodes": [
+        "data": [
           {
             "id": "01a13da0-6c3b-7600-b6f5-4ef2414b2f14",
             "name": "s0",
@@ -282,13 +282,13 @@ The `path` field of a [`Reference`](#reference-interface) only locates the docum
 #### `Declaration` interface
 
 Every object that can be referenced is declared exactly once.
-A declaration is the place where an object's `id` and its other fields are defined, e.g. an entry in a `nodes` or `coordinateSystems` array.
+A declaration is the place where an object's `id` and its other fields are defined, e.g. an entry in a `nodes`, `data` or `coordinateSystems` array.
 
 Every declaration MUST have the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
-| `"type"` | string | yes | Value MUST be the kind of the declared object, e.g. `"collection"`, `"multiscale"` or `"array"` for nodes and `"coordinate_system"` for coordinate systems. |
+| `"type"` | string | yes | Value MUST be the kind of the declared object, e.g. `"collection"` or `"multiscale"` for nodes, `"array"` for array objects, and `"coordinate_system"` for coordinate systems. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. |
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
@@ -382,7 +382,8 @@ Objects that implement `Node` have the following fields:
 ##### Field: `type`
 
 The `type` field of a `Node` defines its structure and semantics, including any additional fields it might have.
-This RFC defines three node types: `collection`, `multiscale`, and `array`.
+This RFC defines two node types: `collection` and `multiscale`.
+A third kind of object, the `array`, is not a node type: `array` objects are stored in the `data` field of a `multiscale` node.
 
 The `type` field of a `Node` is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
 
@@ -570,10 +571,14 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
 ```
 
 (rfcs:rfc8:array-node)=
-#### `Array` node
+#### `Array` object
 
-An `Array` node represents one resolution level of an OME-Zarr multiscale image.
+An `Array` object represents one resolution level of an OME-Zarr multiscale image.
 This new interface replaces the dataset metadata defined in the previous versions of the OME-Zarr specification.
+
+`Array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the root object of the `ome` key.
+Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscale-node), which is a leaf node.
+`Array` objects conform to the [`Declaration` interface](#declaration-interface), so that coordinate transformations can reference them by `id`.
 
 (rfcs:rfc8:array-node-schema)=
 ##### Schema
@@ -581,38 +586,52 @@ This new interface replaces the dataset metadata defined in the previous version
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"array"`. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"coordinateTransformations"` | object | no | The coordinate transformations from a lower-resolution scale to the highest resolution scale. |
-| `"attributes"` | object | yes | Value MUST be a dictionary. [See attributes section](#attributes). Required because it MUST contain `coordinateTransformations`.|
+| `"downsamplingTransformations"` | object | no | The coordinate transformations from a lower-resolution scale to the highest resolution scale. |
 
-`Array` nodes represent resolution levels within a multiscale pyramid.
+`Array` objects represent resolution levels within a multiscale pyramid.
 
-(rfcs:rfc8:array-node-field-coordinateTransformations)=
-##### Field: `coordinateTransformations`
+(rfcs:rfc8:array-node-field-downsamplingTransformations)=
+##### Field: `downsamplingTransformations`
 
-`Array` nodes MUST have a `coordinateTransformations`, which
+`Array` objects other than the highest-resolution object MUST have a `downsamplingTransformations` field, which
 - is an array of transformation objects, that conform to the [coordinate transformations](#coordinate-transformations) specification
-- contain and only contain a single `scale` transformation, or a `sequence` of a `scale` transformation followed by a `translation` transformation.
-- The `input` field of these transformations references the `id` of the  `Array` node itself.
-- The `output` field references the `id` of a coordinate system defined under `coordinateSystems` in a `Multiscale` node.
+- contains and only contains either a single `scale` transformation, or a `scale` transformation followed by a `translation` transformation.
+- The `input` field of these transformations is implicitly the `Array` object itself.
+- The `output` field is implicitly the highest-resolution `Array` object in the `data` field of the enclosing `multiscale` node.
 
 ```jsonc
 {
   "ome": {
     "version": "0.x",
-    "type": "singlescale",
+    "type": "multiscale",
     "id": "01a13da8-7b6e-7030-ac88-b8013ef53020",
-    "name": "s0",
-    "path": {
-      "type": "zarr",
-      "format": "relative",
-      "href": "./s0"
-    },
-    "attributes": {
-      ...
-    }
+    "name": "our_first_pyramid",
+    "coordinateSystems": [...],
+    "coordinateTransformations": [...],
+    "data": [
+      {
+        "type": "array",
+        "path": {
+          "type": "zarr",
+          "format": "relative",
+          "href": "s0"
+        }
+      },
+      {
+        "type": "array",
+        "path": {
+          "type": "zarr",
+          "format": "relative",
+          "href": "s1"
+        },
+        "downsamplingTransformations": [
+          {"type": "scale", "scale": [1, 2, 2]},
+          {"type": "translation", "translation": [0, 0.5, 0.5]}
+        ]
+      }
+    ]
   }
 }
 ```
@@ -622,6 +641,7 @@ This new interface replaces the dataset metadata defined in the previous version
 
 A `Multiscale` node represents an OME-Zarr multiscale image.
 This new interface replaces the multiscale metadata defined in the previous versions of the OME-Zarr specification.
+A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels are [`Array` objects](#array-object) stored in its `data` field.
 
 (rfcs:rfc8:multiscale-node-schema)=
 ##### Schema
@@ -631,11 +651,13 @@ This new interface replaces the multiscale metadata defined in the previous vers
 | `"type"` | string | yes | Value MUST be `"multiscale"`. |
 | `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
-| `"nodes"` | array | no | Value MUST be an array of `Singlescale` objects. |
+| `"data"` | array | no | Value MUST be an array of `Array` objects. [See array object](#array-object). |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"traits"` | object | yes | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
+| `"coordinateSystems"` | array | no | Value MUST be an array of `coordinateSystem` objects. |
+| `"coordinateTransformations"` | array | no | Value MUST be an array of `coordinateTransformation` objects, the output of which MUST be present in the `coordinateSystems` array. |
+| `"traits"` | object | no | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
 
-Either `"nodes"` or `"path"` MUST be present, but not both.
+Either `"data"` or `"path"` MUST be present, but not both.
 
 If `"path"` is present, the document it resolves to MUST have a root node of type `multiscale`.
 
@@ -646,19 +668,16 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
         "type": "multiscale",
         "id": "01a1354c-9611-72bb-b440-6db340b0f0bd",
         "name": "imagepyramid1",
-        "nodes": [
+        "data": [
           {
             "id": "01a13daa-329c-7242-9610-af256d94c029",
             "name": "s0",
-            "type": "singlescale",
+            "type": "array",
             "path": {
               "type": "zarr",
               "format": "relative",
               "href": "./s0"
-            },
-            "traits": [
-              ...
-            ]
+            }
           },
           ...
         ]
@@ -671,7 +690,7 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
 
 Coordinate systems and transformations can be stored in two distinct locations:
 
-- For multiscale images, they can be stored directly in the coordinateSystems and coordinateTransformations keys of the multiscale node.
+- For multiscale images, they can be stored directly in the coordinateSystems and coordinateTransformations fields of the multiscale node.
 - For collections of two or more images in a common coordinate system, RFC-5 defines a parent-level metadata format.
   In this layout, `coordinateTransformations` define relationships between different `coordinateSystems`,
   which may be associated to multiscale images:
@@ -818,10 +837,10 @@ Depending on the context, the `input` and `output` references point to different
 | Context | `input` | `output` |
 | - | - | - |
 | **scene** | `{"type": "coordinate_system", path: {..., "href": "./imageA"}, "ref": "01a13e16-c6d6-7057-8a73-7d977c754ea3"}` | `{"type": "coordinate_system", path: {..., "href": "./imageA"}, "ref": "01a13e16-ff87-701f-a77e-b357eca9fd64"}` |
-| **Multiscale > coordinateTransformations** | {"type": "singlescale", "ref": "01a13e17-4776-72aa-8a9a-f1101d555fc2"} | { "type": "coordinate_system", "ref": "01a13e17-9425-7457-b728-9b545e3bf661"} |
+| **Multiscale > coordinateTransformations** | {"type": "array", "ref": "01a13e17-4776-72aa-8a9a-f1101d555fc2"} | { "type": "coordinate_system", "ref": "01a13e17-9425-7457-b728-9b545e3bf661"} |
 
 **Multiscale > coordinateTransformations**: In the context of multiscales transformations, the following requirements apply:
-- The `input` field MUST be a reference of type `singlescale` to a [singlescale node](#singlescale-node).
+- The `input` field MUST be a reference of type `array` to an [`Array` object](#array-object).
 - The `path` field MAY be omitted.
 - The `output` field MUST be a reference of type `coordinate_system`.
 - The `output` fields of all transformations MUST reference the same coordinate system.
@@ -845,7 +864,7 @@ limited to one of:
 
 The `input` of the transformation is the array coordinate system of the array
 object containing the transformation, and the `output` is the array coordinate
-system of the highest-resolution array in the multiscales nodes array.
+system of the highest-resolution array in the `data` array of the multiscale node.
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
@@ -1211,11 +1230,12 @@ The following table recapitulates the currently defined built-in types along wit
 | `zarr` | Path | Core type | This RFC |
 | `json` | Path | Core type | This RFC |
 | `scene` | Trait | Core type | This RFC |
-| `array` | Axe | Core type | RFC-5 |
-| `space` | Axe | Core type | RFC-5 |
-| `time` | Axe | Core type | RFC-5 |
-| `channel` | Axe | Core type | RFC-5 |
-| `coordinate` | Axe | Core type | RFC-5 |
+| `array` | Data object (multiscale `data` field) | Core type | This RFC |
+| `array` | Axis | Core type | RFC-5 |
+| `space` | Axis | Core type | RFC-5 |
+| `time` | Axis | Core type | RFC-5 |
+| `channel` | Axis | Core type | RFC-5 |
+| `coordinate` | Axis | Core type | RFC-5 |
 | `identity` | Coordinate transformation | Core type | RFC-5 |
 | `scale` | Coordinate transformation | Core type | RFC-5 |
 | `translation` | Coordinate transformation | Core type | RFC-5 |
@@ -1490,7 +1510,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "type": "multiscale",
     "name": "multiscales_example",
     "id": "01a13e2d-61b2-7760-9c2a-1aef3d3eeed6",
-    "nodes": [
+    "data": [
       {
         "type": "array",
         "path": {
@@ -1521,7 +1541,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "type": "multiscale",
     "name": "multiscales_example",
     "id": "01a13e2d-61b2-7760-9c2a-1aef3d3eeed6",
-    "nodes": [
+    "data": [
       {
         "type": "array",
         "path": {
@@ -1616,7 +1636,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
             "name": "raw",
             "id": "01a13e40-df14-7774-aafd-aa1a8defcfdd",
             "type": "multiscale",
-            "nodes": [
+            "data": [
               {
                 "id": "01a13e41-0673-7318-96ca-f56480904ce0",
                 "name": "raw_0",
@@ -1634,7 +1654,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
                   "type": "scale",
                   "scale": [1, 1, 1],
                   "input": {
-                    "type": "singlescale",
+                    "type": "array",
                     "ref": "01a13e41-0673-7318-96ca-f56480904ce0"
                   },
                   "output": {
@@ -1748,12 +1768,12 @@ It is the responsibility of implementations to ensure consistency where required
 For reading, implementations SHOULD parse the metadata as available to the implementation from the user-supplied entry point in the OME-Zarr hierarchy.
 
 
-### New Multiscale/Singlescale metadata
+### New Multiscale/Array metadata
 
-In an effort to unify the existing and new collection types of OME-Zarr, the Multiscale metadata has been changed to mirror the Collection metadata.
-Still, it is a specialized node type because of its prevalence and semantic requirements with regards to its Singlescale children nodes.
-The Singlescale metadata has been elevated to a first-class node type.
-This also allows specifying images that only contain a single resolution level.
+In an effort to unify the existing and new collection types of OME-Zarr, the Multiscale metadata has been changed to use the same Node interface as collections.
+Still, it is a specialized node type because of its prevalence and its semantic requirements with regards to the `Array` objects in its `data` field.
+Unlike a `collection`, a `multiscale` node is a leaf node: its `data` field contains `Array` objects, which are not nodes themselves.
+A node type for images that only contain a single resolution level is deferred to a sub-RFC.
 
 These changes are breaking changes to the core of the OME-Zarr specification.
 
