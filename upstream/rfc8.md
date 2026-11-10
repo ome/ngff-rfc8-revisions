@@ -419,7 +419,7 @@ This is particularly useful for defining the nodes that are stored within a Zarr
     "attributes": {
         "ome": {
             "version": "0.x",
-            // Our `collection`-typed node attributes
+            // Our `collection`-typed node fields
             // are listed here
             "type": "collection",
             "id": "01a1354d-7cd7-724f-96d6-29c9d60bbf28",
@@ -441,7 +441,7 @@ Standalone files are useful for persisting groupings of images that may or may n
   // an arbitrary json
     "ome": {
         "version": "0.x",
-        // Our `collection`-typed node attributes
+        // Our `collection`-typed node fields
         // are listed here
         "type": "collection",
         "id": "01a1354d-7cd7-7658-95d8-4f1e9cadc9c6",
@@ -880,8 +880,8 @@ The `scene` trait MUST be an object with the following fields:
 | `"coordinateTransformations"` | array | yes | Values MUST be valid instances of [`Coordinate transformation`](#coordinate-transformation) objects |
 
 A `scene` metadata object can be defined in the `traits` of a collection to enrich the collection with spatial information of the nodes within the collection.
-The `scene` field allows to clearly distinguish between the spatial information pertaining to an individual multiscale image (which is stored in the `traits` of the multiscale)
-and the spatial information pertaining to the collection of images (which is stored in the `traits` of the collection).
+The `scene` trait allows to clearly distinguish between the spatial information pertaining to an individual multiscale image (which is stored in the `coordinateSystems` and `coordinateTransformations` fields of the multiscale node)
+and the spatial information pertaining to the collection of images (which is stored in the `scene` trait of the collection).
 
 <!--
 These "new and modified core classes" could become concrete extensions
@@ -890,7 +890,7 @@ under Damien's proposal
 
 ## Extensions
 
-This section describes an extensibility mechanism by which anyone can unilateraly extend the OME-Zarr specification and store, under the `ome` attributes of a `zarr.json` file (or any standalone JSON file), additional metadata that were not envisioned by the specification, all the while maintaining interoperability with OME-Zarr applications.
+This section describes an extensibility mechanism by which anyone can unilateraly extend the OME-Zarr specification and store, under the `ome` attribute of a `zarr.json` file (or any standalone JSON file), additional metadata that were not envisioned by the specification, all the while maintaining interoperability with OME-Zarr applications.
 
 The basic principle is that an extension compliant with this extensibility mechanism can extend the specification by **defining additional, custom types**. An OME-Zarr extension is therefore essentially a set of custom types.
 
@@ -1313,7 +1313,7 @@ that is defined by coordinate systems and coordinate transformations.
 Since the relationships between images are already defined
 in a graph-like schema as proposed in this RFC,
 the transformations metadata can be represented as a specialized collection
-with coordinate systems and transformations as attributes of the collection and nodes.
+with coordinate systems and transformations as traits of the collection and its nodes.
 In a way, coordinate transformations and systems simply become a subset of the more general collection concept.
 
 
@@ -1332,7 +1332,7 @@ There are multiple areas where it would be interesting to extend this spec.
 There are [ongoing discussions](https://github.com/ome/ngff/pull/137) about whether individual microscope fields of view (ie. well) should be stored as individual OME-Zarr images or as a single OME-Zarr image and how one would represent [different processing intermediates in a plate](https://forum.image.sc/t/how-to-build-hcs-zarrs-with-multiple-image-types-per-fov/119329).
 In these contexts, the current HCS spec lacks flexibility to get additional metadata about how images in a well are related and what a viewer should do with them.
 For example, depending on whether an OME-Zarr image in a well is an individual field of view of a given acquisition, a second acquisition of the same region in a plate or an image derived from a given processing operation, the optimal viewer default on whether to show or not show multiple images at once will vary.
-A flexible metadata field like `attributes` would allow us to better define such image metadata.
+A flexible mechanism for attaching metadata to nodes, such as `traits`, would allow us to better define such image metadata.
 A more flexible HCS collection system could also allow to provide advanced metadata on well positions [when wells have different sizes](https://github.com/ome/ome-zarr-py/issues/240) or address other edge-cases in the current HCS configuration.
 
 
@@ -1614,10 +1614,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
                 "href": "./nested_collection.json"
               }
           }, ...
-        ],
-        "attributes": {
-            ...
-        }
+        ]
     }
 }
 ```
@@ -1648,30 +1645,28 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
                 }
               }
             ],
-            "attributes": {
-              "coordinateTransformations": [
-                {
-                  "type": "scale",
-                  "scale": [1, 1, 1],
-                  "input": {
-                    "type": "array",
-                    "ref": "01a13e41-0673-7318-96ca-f56480904ce0"
-                  },
-                  "output": {
-                    "type": "coordinate_system",
-                    "ref": "01a13e41-6a7e-77e5-aa09-f0017d392a6b"
-                  }
-                }
-              ],
-              "coordinateSystems": [
-                {
+            "coordinateTransformations": [
+              {
+                "type": "scale",
+                "scale": [1, 1, 1],
+                "input": {
+                  "type": "array",
+                  "ref": "01a13e41-0673-7318-96ca-f56480904ce0"
+                },
+                "output": {
                   "type": "coordinate_system",
-                  "id": "01a13e41-6a7e-77e5-aa09-f0017d392a6b",
-                  "name": "physical",
-                  "axes": [...]
+                  "ref": "01a13e41-6a7e-77e5-aa09-f0017d392a6b"
                 }
-              ]
-            }
+              }
+            ],
+            "coordinateSystems": [
+              {
+                "type": "coordinate_system",
+                "id": "01a13e41-6a7e-77e5-aa09-f0017d392a6b",
+                "name": "physical",
+                "axes": [...]
+              }
+            ]
           }
         ]
     }
