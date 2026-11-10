@@ -23,6 +23,8 @@ This proposal is early. Status: D1
 | Christian Tischer | [tischi](https://github.com/tischi) | EMBL | 2025-02-01 | Contributor |
 | Matthew Hartley | [matthewh-ebi](https://github.com/matthewh-ebi) |  EMBL-EBI | 2025-05-05 | Contributor |
 | Damien Goutte-Gattat | [gouttegd](https://github.com/gouttegd) | German BioImaging e.V. | 2026-10-22 | Author |
+| Draga Doncila Pop | [DragaDoncila](https://github.com/DragaDoncila) | Image Cooperative | 2026-11-10 | Author |
+| Juan Nunez-Iglesias | [jni](https://github.com/jni) | Image Cooperative | 2026-11-10 | Author |
 
 <!--
 | Author    | N/A           | N/A         | xxxx-xx-xx | Author; Implemented (link to release) |
