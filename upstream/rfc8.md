@@ -816,7 +816,7 @@ The `Coordinate System` objects have the following fields:
 | `"type"` | string | yes | Value MUST be `"coordinate_system"`. |
 | `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
 | `"name"` | string | no | More descriptive name for the coordinate system, if needed. |
-| `"axes"` | array of strings | yes | Value MUST be an array of axes, as defined in RFC-5. |
+| `"axes"` | array of Axis objects | yes | Value MUST be an array of axes, as defined in RFC-5. |
 
 The `type` field of an `Axis` object is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
 
