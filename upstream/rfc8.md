@@ -293,6 +293,9 @@ Every declaration MUST have the following fields:
 | `"type"` | string | yes | Value MUST be the kind of the declared object, e.g. `"collection"`, `"multiscale"` or `"singlescale"` for nodes and `"coordinate_system"` for coordinate systems. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. IDs MAY be UUIDs. |
 
+IDs SHOULD NOT encode semantics, such as the name, type or location of the declared object, because such information may change while the ID needs to stay stable (see [McMurry et al. 2017](https://doi.org/10.1371/journal.pbio.2001414)).
+Human-readable information belongs in other fields, e.g. `name`.
+
 Additional fields, traits and child nodes of an object are defined on its declaration.
 Everywhere else, the object is referred to with a [`Reference`](#reference-interface).
 Declarations use the `id` key and references use the `ref` key, so that a declaration can always be told apart from a reference.
