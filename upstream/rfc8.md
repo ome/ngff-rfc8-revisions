@@ -1558,7 +1558,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
           "href": "./s1"
         },
         "downsamplingTransformations": [
-          {"type": "scale", "scales": [1, 2, 2]},
+          {"type": "scale", "scale": [1, 2, 2]},
           {"type": "translation", "translation": [0, 0.5, 0.5]}
         ]
       }
