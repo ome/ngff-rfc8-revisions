@@ -655,7 +655,7 @@ A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 | `"path"` | object | no | Value MUST be a `Path` object. |
 | `"coordinateSystems"` | array | no | Value MUST be an array of `coordinateSystem` objects. |
 | `"coordinateTransformations"` | array | no | Value MUST be an array of `coordinateTransformation` objects, the output of which MUST be present in the `coordinateSystems` array. |
-| `"traits"` | object | no | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
+| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
 
 Either `"data"` or `"path"` MUST be present, but not both.
 
