@@ -1240,7 +1240,7 @@ The following table recapitulates the currently defined built-in types along wit
 | `json` | Path | Core type | This RFC |
 | `scene` | Trait | Core type | This RFC |
 | `array` | Data object (multiscale `data` field) | Core type | This RFC |
-| `array` | Axis | Core type | RFC-5 |
+| `index` | Axis | Core type | RFC-5 |
 | `space` | Axis | Core type | RFC-5 |
 | `time` | Axis | Core type | RFC-5 |
 | `channel` | Axis | Core type | RFC-5 |
