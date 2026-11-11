@@ -2281,7 +2281,7 @@ merely provides additional information.
 ## Performance
 
 **Multiple requests to collect metadata.** Assembling a collection from path-referenced nodes requires one metadata request per node (fetching the `zarr.json` of each referenced Zarr group or the standalone JSON file). For large collections or high-latency storage backends (e.g. S3, HTTP), this can result in significant startup latency. Implementations MAY mitigate this by fetching node metadata in parallel and SHOULD consider caching resolved node metadata.
-Writers MAY additionally use Zarr consolidated metadata to bundle the `zarr.json` documents of referenced nodes into the root group, so that readers can load the whole tree in one request (see [Consolidated metadata](#consolidated-metadata-non-normative)).
+Writers MAY additionally use Zarr consolidated metadata to bundle the `zarr.json` documents of referenced nodes into the root group, so that readers can load the whole tree in one request (see [Consolidated metadata](#rfcs:rfc8:metadata-storage-consolidated)).
 The individual `zarr.json` files remain the source of truth.
 
 <!--
@@ -2357,7 +2357,7 @@ The core of this RFC only defines the `relative` path format, which introduces t
 Implementations SHOULD validate that resolved paths remain within an expected root directory or storage namespace, and MUST NOT follow paths that escape a defined sandbox without explicit user consent.
 
 **Resource exhaustion.** Cyclic or very deeply nested paths may cause implementations to issue an unbounded number of requests.
-Implementations MUST detect cycles as described in [Path resolution](#path-resolution) and MAY limit the depth to which they resolve nested paths.
+Implementations MUST detect cycles as described in [Path resolution](#rfcs:rfc8:path-interface-resolution) and MAY limit the depth to which they resolve nested paths.
 
 <!--
 What impact will this proposal have on security? Does the proposal require a
