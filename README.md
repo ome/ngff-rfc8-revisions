@@ -1,4 +1,4 @@
-# RFC-8 revision 1
+# RFC-8 revision 2
 
 Proposed revisions to OME-Zarr RFC-8 (Collections and Extensibility), Fall 2026.
 

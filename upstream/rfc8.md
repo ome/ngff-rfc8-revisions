@@ -23,6 +23,8 @@ This proposal is early. Status: D1
 | Christian Tischer | [tischi](https://github.com/tischi) | EMBL | 2025-02-01 | Contributor |
 | Matthew Hartley | [matthewh-ebi](https://github.com/matthewh-ebi) |  EMBL-EBI | 2025-05-05 | Contributor |
 | Damien Goutte-Gattat | [gouttegd](https://github.com/gouttegd) | German BioImaging e.V. | 2026-10-22 | Author |
+| Draga Doncila Pop | [DragaDoncila](https://github.com/DragaDoncila) | Image Cooperative | 2026-11-10 | Author |
+| Juan Nunez-Iglesias | [jni](https://github.com/jni) | Image Cooperative | 2026-11-10 | Author |
 
 <!--
 | Author    | N/A           | N/A         | xxxx-xx-xx | Author; Implemented (link to release) |
@@ -278,6 +280,18 @@ Implementations MUST detect cycles and MUST stop resolving and report an error w
 This rule applies to the `path` fields of nodes.
 The `path` field of a [`Reference`](#reference-interface) only locates the document that contains the referenced object and MAY point back to an enclosing document, e.g. from a resolution level to the coordinate systems of its multiscale.
 
+(rfcs:rfc8:ids)=
+#### IDs
+
+IDs identify the objects that are declared with the [`Declaration` interface](#declaration-interface).
+All IDs MUST follow these rules:
+
+- IDs MUST be non-empty strings.
+- IDs MUST only use characters in the sets `a-z`, `A-Z`, `0-9`, `-`, `_` and `.`.
+- IDs MAY be UUIDs, in which case they SHOULD be UUIDv7+.
+- IDs SHOULD NOT encode semantics, such as the name, type or location of the declared object, because such information may change while the ID needs to stay stable (see [McMurry et al. 2017](https://doi.org/10.1371/journal.pbio.2001414)).
+  Human-readable information belongs in other fields, e.g. `name`.
+
 (rfcs:rfc8:declaration-interface)=
 #### `Declaration` interface
 
@@ -290,6 +304,7 @@ Every declaration MUST have the following fields:
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be the kind of the declared object, e.g. `"collection"` or `"multiscale"` for nodes, `"array"` for array objects, and `"coordinate_system"` for coordinate systems. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. |
+| `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. IDs MUST follow the [ID rules](#ids). |
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
 Everywhere else, the object is referred to with a [`Reference`](#reference-interface).
@@ -373,7 +388,7 @@ Objects that implement `Node` have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be a string identifying the node type. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits) |
 
@@ -382,6 +397,7 @@ Objects that implement `Node` have the following fields:
 ##### Field: `type`
 
 The `type` field of a `Node` defines its structure and semantics, including any additional fields it might have.
+Additional functionality of a node can be expressed through its [traits](#traits).
 This RFC defines two node types: `collection` and `multiscale`.
 A third kind of object, the `array`, is not a node type: `array` objects are stored in the `data` field of a `multiscale` node.
 
@@ -396,9 +412,15 @@ Non-root `Node` objects SHOULD NOT have a `version` field and MUST NOT have a di
 (rfcs:rfc8:abstract-structure-traits)=
 #### Traits
 
-Each `Node` has a `traits` field that accepts a list of `Trait` objects. A trait is an object that can be used to enrich any `Node` with arbitrary metadata. A primary use case for traits is the specialization of collections and nodes.
+Each `Node` has a `traits` field that accepts a list of `Trait` objects.
+The node type and the traits of a node have separate roles.
+The node type defines the structure of a node: which fields it has and how readers traverse it and resolve its children.
+Traits define the function of a node: what the data represents and how it relates to other nodes, e.g. that a collection is a plate, a well or a scene, or that an image contains labels.
+A node may carry any number of traits, so independent aspects can be combined on the same node without defining a new node type for each combination.
 
 Each trait has minimally a `type` field, which dictates how the trait should be interpreted and defines the other fields it may contain.
+Trait fields are stored inside the trait object, not on the node.
+Readers that do not understand a trait MAY ignore it and still traverse the node based on its node type.
 
 This RFC defines one type of trait: [`scene`](#scene-trait).
 
@@ -540,7 +562,7 @@ referenced by paths instead of relying on a file system hierarchy.
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"collection"`. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
@@ -650,7 +672,7 @@ A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"multiscale"`. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"data"` | array | no | Value MUST be an array of `Array` objects. [See array object](#array-object). |
 | `"path"` | object | no | Value MUST be a `Path` object. |
@@ -815,7 +837,7 @@ The `Coordinate System` objects have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"coordinate_system"`. |
-| `"id"` | string | yes | Value MUST be a UUID, MUST be unique within the JSON document, and SHOULD be a UUIDv7+. |
+| `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | More descriptive name for the coordinate system, if needed. |
 | `"axes"` | array of Axis objects | yes | Value MUST be an array of axes, as defined in RFC-5. |
 
@@ -895,7 +917,38 @@ This section describes an extensibility mechanism by which anyone can unilateral
 
 The basic principle is that an extension compliant with this extensibility mechanism can extend the specification by **defining additional, custom types**. An OME-Zarr extension is therefore essentially a set of custom types.
 
-Note: We acknowledge that, since most if not all OME-Zarr implementations are inherently “permissive” (in that they will silently ignore anything that they don’t recognize or don’t expect in a JSON file), it is already possible for anyone to store additional metadata and create _de facto_ their own extension of OME-Zarr. However, without adhering to the rules of an established extensibility mechanism, such extensions do not provide any guarantee of interoperability. In the rest of this document, the word “extension” will be understood as referring strictly to “an extension compliant with the proposed extensibility mechanism”, ignoring all other possibilities of extensions.
+### Rationale for OME-Zarr extensions
+
+We must acknowledge from the very beginning that, by its very nature, OME-Zarr is already _de facto_ extensible, even before the word “extensibility” makes it into the OME-Zarr specification. Anyone can craft an OME-Zarr fileset that contains data beyond what is described in the current version of the specification. Most if not all OME-Zarr readers are inherently “permissive”, in that they will silently ignore anything that they don’t recognise or don’t expect within an OME-Zarr fileset, so that the presence of additional data will typically not result in an unreadable fileset.
+
+However, if left unchecked, this _de facto_ extensibility could quickly become a barrier to interoperability. If every single creator of OME-Zarr filesets can singlehandedly come up with its own way of representing a particular piece of data, then there is a risk that a particular piece of data may be understandable only by the very same implementation that created it; or (arguably even worse) that a particular piece of data may be understood _differently_ by different implementations. Ultimately, OME-Zarr could end up as a file format that is interoperable in name only: everybody would be using OME-Zarr, but all in slightly incompatible ways.
+
+The solution to that risk is _not_ to “close down” OME-Zarr, to mandate implementations to be non-permissive and to consider that anything that is not explicitly allowed by the specification is forbidden. In fact, even if we wanted to do that, we would have little to no leverage to actually enforce such a policy. Instead, we believe the proper solution is for OME-Zarr to provide a built-in extensibility mechanism. There will be no _obligation_ for people willing to extend OME-Zarr to use the mechanism defined here (again, we would have very little leverage to enforce such an obligation anyway), but (voluntarily) using it would allow the OME-Zarr community to _manage_ the interoperability issues.
+
+The manageability aspect is important because an extensibility system alone cannot prevent (a) the risk of a fragmented ecosystem, with an uncontrolled proliferation of redundant extensions; (b) the risk of uninterpretable extensions, that cannot be understood beyond their originating implementations. Instead, the OME-Zarr community will need to take steps to actively monitor the extension ecosystem and intervene as needed to try avoiding redundant or concurrent extensions in favour of promoting cooperation.
+
+In short, we propose that OME-Zarr should offer a system of _manageable_ extensibility, which would be preferred over the _de facto_ extensibility that is already offered by the very nature of OME-Zarr.
+
+This proposal requires that extensions be treated as first-class objects within the OME-Zarr specification, which is the purpose of this section of the present RFC.
+
+In the rest of this document, the word “extension” will be understood as referring strictly to “an extension compliant with the proposed extensibility mechanism”, ignoring all other possibilities of extensions.
+
+#### Desired characteristics for OME-Zarr’s extensibility mechanism
+
+(Those characteristics are _not_ listed in any particular order.)
+
+1. Anyone can define an extension. Prior permission is not required.
+2. An extension can extend another extension, without arbitrary limits as to the “depth” of an extension chain.
+3. Data from an extension must be preserved by all implementations – including implementations that are not explicitly aware of that particular extension. OME-Zarr readers must be able to pass unknown extensions’ data down to their client code.
+4. Extensions must be unambiguously identifiable.
+5. An OME-Zarr reader must be able to quickly determine (and report to client code) the extensions that are being used within an OME-Zarr fileset, if any.
+6. OME-Zarr implementations must be able to unambiguously state which extensions they explicitly support, preferably in machine-readable form.
+7. Any extension must be clearly documented. The documentation must state what additional data the extension is intended to store, the purpose of such data, and where to find them.
+8. Any extension must provide a formal schema describing the shape of its data and allowing even an implementation that does not explicitly support the extension to perform basic validation of the extension’s data.
+9. An extension should have a way to self-declare how “important” the extension is for a correct understanding of the OME-Zarr fileset in which it is used.
+10. The extensibility mechanism must ensure the absence of naming conflicts between two extensions developed independently.
+11. There must be a reasonably straightforward way to “promote” an extension so that it becomes part of the next version of the OME-Zarr specification, if there is agreement among the OME-Zarr community (as reached, most likely, through the existing RFC process) about the usefulness of the extension.
+12. The promotion of an extension must not invalidate existing data created before the extension was promoted.
 
 ### Extension and custom type identifiers
 
@@ -904,6 +957,9 @@ An extension MUST have a unique identifier, which SHOULD be an absolute URI that
 All custom types defined by an extension MUST have their own unique identifier, which MUST be built by appending a type-specific suffix (the type’s _local name_, within the context of the extension that defines it) to the extension’s identifier.
 
 > For example, if an extension with the identifier `https://example.org/my-ngff-extension/` defined a new type of coordinate transformation named `NonLinearTransform`, the identifier for the new type would be `https://example.org/my-ngff-extension/NonLinearTransform`, with `NonLinearTransform` being the type’s local name.
+
+Extensions that add functions to existing structures SHOULD define new trait types rather than new node types.
+New node types are intended for data whose structure cannot be represented by the existing node types.
 
 ### Extension points
 
@@ -1504,6 +1560,14 @@ Also note the presence of a MoBIE-specific extension, which adds a MoBIE-specifi
 }
 ```
 
+### 11. Training crops cut from non-OME-Zarr sources
+
+Machine-learning pipelines train on small patches ("crops") cut from published datasets. The sources may be OME-Zarr images, but are often archived in other formats such as TIFF, MRC, HDF5 and N5. A data preparation pipeline downloads the files, cuts the planned crops at several resolution levels, writes them as OME-Zarr images, and finally tensorizes them for training.
+For reproducibility, four questions should be answerable from the metadata: how the image was made (software, environment, parameters, time); which file the voxels came from, and whether that file has changed since; where in the source volume each crop sits, at each level; and which parts of the image hold data and what was deliberately omitted.
+
+The first question is answered by a provenance record on the node, such as the [`provenance:` Zarr convention](https://github.com/BioImageTools/zarr-convention-provenance), which lists the steps that made it with their inputs and outputs as paths, URIs or identifiers. The other three are relationships, and a provenance record cannot express them: its references are strings, not references to declared objects with coordinate systems, so nothing ties "the file this image was cut from" to a frame or an extent, and nothing says that the raw image and its label share a frame other than a repeated coordinate-system name.
+
+With this proposal the volume is written as a collection rather than as one image with nested labels. The raw image and its label are sibling multiscales placed in a shared coordinate system by the `scene` trait. Each image names the file it was cut from with a reference to a node that stands for that file; the file's own array index space is a coordinate system of that node, so the crop offset is a transform between two declared frames rather than a convention. The planned crops are nodes with an extent and a reference to the image, not copies of its bytes. The provenance record stays beside `ome` in the node's attributes and names the same nodes by their `id`, so a reader can join how a node was made with what it is to the other nodes.
 
 ## Other Examples
 
@@ -1858,13 +1922,36 @@ For these reasons, the RFC adopts a simpler custom format and a custom type syst
 
 An initial version of this RFC proposed that third parties could extend the specification by (1) registering an extension prefix into a registry maintained by the community and (2) prepend the registered prefix to any type name they wish to create.
 
-This was abandoned in favour of (1) mandating that custom types be identified by an identifier that is derived from an _extension_ identifier, where the extension is itself declared in the _extension manifest_; and (2) recommending that extension identifiers (and therefore custom type identifiers) be URI-based. This better meets the [desired characteristics](https://github.com/gouttegd/yamf-playground/blob/main/ome-zarr/EXTENSIBILITY_MANIFESTO.md#desired-characteristics-for-a-manageable-extensibility-mechanism) for OME-Zarr extensibility, as set forth in the June 2026 Heidelberg hackathon.
+This was abandoned in favour of (1) mandating that custom types be identified by an identifier that is derived from an _extension_ identifier, where the extension is itself declared in the _extension manifest_; and (2) recommending that extension identifiers (and therefore custom type identifiers) be URI-based. This better meets the [desired characteristics](#desired-characteristics-for-ome-zarrs-extensibility-mechanism) for OME-Zarr extensibility, as set forth in the June 2026 Heidelberg hackathon.
 
 ### Prefixed attribute keys
 
 An initial version of this RFC proposed that third parties could append custom metadata to any node by adding prefixed keys to an `attributes` dictionary carried by every node, where the prefix has been previously registered into a registry maintained by the community (as for custom types, see previous section).
 
 This was abandoned in favour of the [trait](#traits) concept.
+
+### Subtyped node types
+
+An alternative to traits was to specialize nodes through subtypes, e.g. a `PlateCollection`, `WellCollection` or `SceneCollection` that extends `collection` and carries the additional fields directly on the node.
+This has the appeal that the node type alone states what a node is, and that mutually exclusive specializations such as plate and well are exclusive by construction.
+
+However, real data often combines independent aspects, e.g. a well whose fields of view form a scene, or a segmentation derived from a remote image.
+With subtypes, every such combination needs its own named type, and the number of types grows combinatorially with each new aspect.
+Multiple inheritance could avoid naming every combination up front.
+But it puts the fields of all parents into one namespace and needs rules for resolving conflicts between parents.
+It also still requires a named type per combination, so done properly it ends up close to traits.
+A single-inheritance hierarchy, on the other hand, forces arbitrary decisions, such as whether a well is a kind of scene or the other way round, that are hard to change later.
+
+Subtypes also degrade poorly.
+A reader that does not know an extension subtype cannot interpret the node at all.
+With traits, the node type stays a known core type, so the data can still be traversed and displayed while unknown traits are ignored.
+Traits further allow partial support and modular validation: an implementation can support a subset of traits, and each trait is validated against its own schema.
+Finally, previous versions of the specification already compose metadata on one group (`multiscales`, `labels`, `omero`), and traits keep that model.
+
+This was abandoned in favour of the [trait](#traits) concept, which is inspired by traits in Rust and comparable to interfaces in Java and extensions in STAC.
+Node types describe structure (how a node is traversed) and traits describe meaning.
+Exclusivity between traits has to be stated explicitly in the trait specifications.
+Extensions may still define new node types for structures that the core node types do not cover.
 
 
 <!--
@@ -2211,8 +2298,53 @@ Shortened version from https://gist.githubusercontent.com/will-moore/fe0e260544b
 
 The design of the [extensibility mechanism](#extensions) was influenced by:
 
-- the [OME-Zarr Extensibility Manifesto](https://github.com/gouttegd/yamf-playground/blob/main/ome-zarr/EXTENSIBILITY_MANIFESTO.md), which is itself the result of a discussion that took place in a OME-Zarr hackathon held in Heidelberg in June 2026;
+- the [OME-Zarr Extensibility Manifesto](https://github.com/gouttegd/yamf-playground/blob/main/ome-zarr/EXTENSIBILITY_MANIFESTO.md), which is itself the result of a discussion that took place in an OME-Zarr hackathon held in Heidelberg in June 2026; the [“Rationale” section](#rationale-for-ome-zarr-extensions) in the present RFC is essentially a condensed version of that document;
 - the [Proposal for a generic extensibility scheme](https://github.com/gouttegd/yamf-playground/blob/main/EXTENSIBILITY.md) – what this RFC calls a “trait” is essentially what that proposal called a “class extension”.
+
+### Zarr Extensions & Zarr Conventions
+
+The underlying Zarr format has its own mechanisms to support extensibility. Specifically, it has a concept of “Zarr Extensions”, formally defined in the [Zarr specification](https://zarr-specs.readthedocs.io/en/latest/v3/core/index.html#extensions), as well as a concept of [“Zarr Conventions”](https://github.com/zarr-conventions/zarr-conventions-spec/tree/v1), a community-driven initiative to allow defining additional and optional metadata attributes.
+
+Briefly, the most important characteristics of the Zarr-level mechanisms are:
+
+* Zarr Extensions
+    * can only be used at specification-defined extension points;
+    * must be registered into a dedicated GitHub repository prior to being used in any implementation;
+    * may be refused registration at the discretion of the Zarr Format Working Group (ZFWG);
+    * avoid naming conflicts between independently developed extensions through the aforementioned registration step (no one can register an extension with the same name as a previously registered extension).
+* Zarr Conventions
+    * can only define new keys in the `attributes` dictionary (or into subdictionaries within the `attributes` dictionary);
+    * are only intended for optional, safely ignorable data;
+    * do not require any approval and can be freely created by anyone;
+    * must be declared in any Zarr file in which they are used through a dedicated top-level `zarr_conventions` dictionary;
+    * may be registered into a dedicated GitHub repository;
+    * have no mechanisms to avoid naming conflicts between independently developed Zarr Conventions.
+
+Because they are strictly reserved for Zarr-defined extension points, Zarr Extensions were not considered as a possible solution for OME-Zarr extensibility. Basically, Zarr Extensions are for Zarr-defined extension points and OME-Zarr extensions (as defined in the present RFC) are for OME-Zarr-defined extension points; OME-Zarr extensions do _not_ supersede or replace Zarr Extensions, which MUST still be used whenever one wants to extend a Zarr extension point (for example, defining a new Zarr codec CANNOT be done using an OME-Zarr extension).
+
+Zarr Conventions _were_ considered as a candidate mechanism for OME-Zarr extensibility. We rejected them for essentially three reasons: (a) there is a considerable misalignment between Zarr Conventions and our [desired characteristics](#desired-characteristics-for-ome-zarrs-extensibility-mechanism), (b) though it is _not_ listed as a “desired characteristic”, it is our intention that “OME-Zarr extensions” could be used in a broader OME context than just OME-Zarr, which precludes relying on a Zarr-specific mechanism; (c) the stability of the Zarr Conventions specification is unclear, notably as, according to the [governance document](https://github.com/zarr-conventions/zarr-conventions-spec/blob/main/GOVERNANCE.md), the specification of Zarr Conventions can be changed at anytime with the approval of two members of the Zarr Conventions’ “Core Developers Group” (CDG) – we believe that this falls short of the rigourous RFC process used for the OME-Zarr specification.
+
+Regarding point (a) above, the main misalignments were:
+
+**No support for `mustUnderstand`.** Zarr Conventions are explicitly intended for “safely ignorable” data only, and therefore have no mechanisms allowing an extension to self-declare whether it is in fact “safely ignorable” or not.
+
+**No mechanisms to avoid conflicts between independently developed extensions.** Each Zarr Convention has a unique identifier (either a UUID or, in the absence of a UUID, a URL), but the identifier only identifies the Zarr Convention itself – it is not used to distinguish the _keys_ that are defined by the convention. The keys defined by a Zarr Convention are distinguished from keys defined by other Zarr Conventions by either
+
+* a prefix freely choosen by the Zarr Convention’s author, that is prepended to every key;
+* moving all the keys in a subdictionary whose name is itself freely chosen by the Zarr Convention’s author.
+
+It is entirely left to the author of any given Zarr Convention to take care of choosing a prefix (or a subdictionary name) that will not conflict with any other Zarr Convention – something that may be difficult, or even impossible, to achieve given that, though a central registry of Zarr Conventions exists:
+
+* registration is not mandatory;
+* the registry does not allow to query Zarr Conventions by prefix (the “registry” is merely a list of links to GitHub repositories), meaning a Zarr Convention author wishing to check whether the prefix he was planning to use has not already been used (at least in the Zarr Conventions that have been registered) would have to iterate through the `README.md` of every registered Zarr Conventions – impractical and clearly not scalable.
+
+Furthermore, not only the Zarr Conventions specification does not prevent conflicting prefixes (again, leaving that responsibility to each Zarr Convention author), it is also silent as to what should happen when a naming conflict does occur.
+
+For example, if the creator of a Zarr fileset wants to use two Zarr Conventions that happen to use the same prefix (or the same subdictionary name), it is unclear whether (a) this is simply not possible or (b) the creator is allowed to unilateraly change the prefix (or subdictionary name) of one of the two Conventions so that it does not conflict with the other. If (b), then this creates a validation problem because the JSON-Schema that the Zarr Convention may provide to allow validating its data will _not_ be aware of the renaming.
+
+(Incidentally the latter point is an illustration of why trying to use prefixes in JSON as a poor man’s namespacing system is generally a bad idea. Prefixes work as a namespacing system in XML because XML has built-in support for prefixed namespaces; JSON has not.)
+
+Overall, the Zarr Conventions specification seems to have been designed under the optimistic assumption that name conflicts will be infrequent enough that they can safely be left to individual Zarr Conventions’ authors and/or to implementations to deal with. We believe that a proper extensibility system without mandatory central registration should be designed under the pessimistic assumption that name conflicts will happen all the time.
 
 <!--
 
@@ -2248,6 +2380,9 @@ Future additions include:
 
 - Additional node types, such as tables, meshes
 - Additional path formats, such as S3 URLs
+- A `source` trait on any node ("derived from"), and a node type for data that is not OME-Zarr (a path, possibly into an archive, and the data's own coordinate systems), so derived images can name what they came from across the format boundary (user stories 3, 9, 11)
+- Traits stating the extent of a node per resolution level and whether absent chunks are unwritten or fill, so sparse and sub-region images render correctly (user story 11)
+- A rule that a node's `id` is the identifier a provenance record (such as the `provenance:` Zarr convention) uses for it, so that process history and node relationships can be joined (user story 11)
 
 Within the collections proposal, there are also opportunities for standardizing further metadata:
 
@@ -2256,8 +2391,29 @@ Within the collections proposal, there are also opportunities for standardizing 
 
 Future work:
 
-- Defining formal mechanism for extensions
 - Implementing the [URL pipeline specification](https://github.com/jbms/url-pipeline) proposed by Jeremy Maitin-Shephard
+
+### Extensibility
+
+Future work on the extensibility system will be likely to include:
+
+**Revising the `mustUnderstand` flag.** In particular,
+
+- is a boolean flag enough, or should we allow for more requirement levels?
+- the `mustUnderstand` flag is currently set at the level of an entire extension, and applies to all custom types defined by that extension; should we allow a finer, per-type granularity?
+- is that flag really needed at all?
+
+This will likely happen in future revisions of the present RFC.
+
+**Limiting where specific traits can be used.** In the current proposal, any custom trait can be used on any node. We may consider a system (to be designed) allowing to express constraints about which trait can be used on which node type.
+
+If such a system is thought to be desirable, it will likely be added in future revisions of the present RFC.
+
+**Defining an extension management strategy.** The present RFC is deliberately silent on the issue on _how_ extensions will be managed – it merely defines the extensibility system and states that, on a technical level, anyone can create an extension.
+
+Future RFCs may define a strategy for the community to actually manage the extensions – which will be required to avoid, as much as possible, the uncontrolled proliferation of possibly redundant extensions.
+
+Given that we strongly recommend that extensions are identified by a URI-based identifier, we envision a system where URI namespaces could be used to distinguish between extensions depending on their level of community support. For example, while the general rule would remain that anyone can create an extension, there could be a dedicated namespace (e.g. `https://community-extensions.openmicroscopy.org/`) in which an extension ID can only be minted with some level of approval from the community. How this approval should be sought and granted remains to be defined and is out of scope for the present RFC, but the important point here is that such a strategy can easily be added on top of the mechanism defined here, without requiring any changes to said mechanism – because a “community-approved” extension would _not_, technically, be any different from any other extension.
 
 <!--
 Think about what the natural extension and evolution of your proposal would be
