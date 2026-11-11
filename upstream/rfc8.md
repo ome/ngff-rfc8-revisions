@@ -559,6 +559,7 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
       "name": "proj_gallery",
       "nodes": [{
           "type": "collection",
+          "id": "01a1c894-073b-74b6-a792-8d96c275a594",
           "name": "gallery1",
           "path": {
             "type": "json",
@@ -1116,8 +1117,10 @@ In this example, a `https://ngff.example.com/transforms/` extension defines a cu
             }
         ],
         "type": "collection",
-        "traits": {
-            "scene": {
+        "nodes": [ /* ... */ ],
+        "traits": [
+            {
+                "type": "scene",
                 "coordinateSystems": [
                     {
                         "id": "physical",
@@ -1137,13 +1140,18 @@ In this example, a `https://ngff.example.com/transforms/` extension defines a cu
                 "coordinateTransformations": [
                     {
                         "type": "https://ngff.example.com/transforms/ThinPlateSpline",
-                        "input": {"id": "physical"},
-                        "output": {"id": "registered"},
-                        "controlPoints": {"type": "zarr", "format": "relative", "href": "./tps/control_points"},
+                        "input": "physical",
+                        "output": "registered",
+                        "controlPoints": {
+                            "type": "zarr",
+                            "format": "relative",
+                            "href": "./tps/control_points"
+                        },
                         "regularization": 0.01
+                    }
                 ]
-            },
-        "nodes": [ /* ... */ ]
+            }
+        ]
     }
 }
 ```
@@ -1189,6 +1197,7 @@ In this example, two OME-Zarr viewers, “Viewer A” and “Viewer B” each ha
             {
                 "name": "nuclei",
                 "type": "multiscale",
+                "id": "01a1c896-7b37-75e4-b480-c34316769b55",
                 "path": {"type": "zarr", "format": "relative", "href": "./nuclei"},
                 "traits": [
                     {
@@ -1409,6 +1418,7 @@ Also note the presence of a MoBIE-specific extension, which adds a MoBIE-specifi
             }
         ],
         "type": "collection",
+        "id": "01a1c8a2-33e2-7648-9e21-c0928eaa8ee0",
         "name": "openorganelle-mito-gallery",
         "nodes": [
             {
@@ -1600,12 +1610,14 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
               "format": "relative",
               "href": "./raw",
             },
-            "traits": {
-                "example-viewer:settings": {
+            "traits": [
+                {
+                    "type": "example-viewer.org/ngff/settings",
                     "isDisabled": true
                 },
                 ... // arbitrary user-defined metadata
-            },
+                }
+            ]
           },
           {
               "name": "nested_collection",
@@ -1651,14 +1663,8 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
               {
                 "type": "scale",
                 "scale": [1, 1, 1],
-                "input": {
-                  "type": "array",
-                  "ref": "01a13e41-0673-7318-96ca-f56480904ce0"
-                },
-                "output": {
-                  "type": "coordinate_system",
-                  "ref": "01a13e41-6a7e-77e5-aa09-f0017d392a6b"
-                }
+                "input": "01a13e41-0673-7318-96ca-f56480904ce0",
+                "output": "01a13e41-6a7e-77e5-aa09-f0017d392a6b"
               }
             ],
             "coordinateSystems": [
