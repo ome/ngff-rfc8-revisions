@@ -1,13 +1,13 @@
 {
   "ome": {
-    "version": "0.x",
-    "extension_manifest": [
+    "version": "0.9dev4",
+    "extensionManifest": [
       {
         "id": "https://napari.org/ngff/",
         "version": "1.0",
         "schemas": [
           {
-            "type": "json_schema",
+            "type": "jsonschema",
             "url": "https://napari.org/ngff/1.0/schema.json"
           }
         ],
@@ -15,15 +15,15 @@
       }
     ],
     "type": "collection",
-    "id": "0192f3a0-7c1e-7b00-9c22-000000000001",
+    "id": "000001",
     "name": "hela-nuclei-experiment",
     "traits": [
       {
         "type": "scene",
-        "coordinate_systems": [
+        "coordinateSystems": [
           {
             "type": "coordinate_system",
-            "id": "0192f3a0-7c1e-7b00-9c22-000000000005",
+            "id": "000004",
             "axes": [
               {
                 "name": "z",
@@ -43,48 +43,48 @@
             ]
           }
         ],
-        "coordinate_transformations": [
+        "coordinateTransformations": [
           {
-            "type": "translation",
-            "translation": [
-              0,
-              0,
-              100
-            ],
             "input": {
               "type": "coordinate_system",
+              "ref": "000005",
               "path": {
                 "type": "zarr",
                 "format": "relative",
                 "href": "./raw"
-              },
-              "ref": "0192f3a0-7c1e-7b00-9c22-000000000020"
+              }
             },
             "output": {
               "type": "coordinate_system",
-              "ref": "0192f3a0-7c1e-7b00-9c22-000000000005"
-            }
-          },
-          {
+              "ref": "000004"
+            },
             "type": "translation",
             "translation": [
-              0,
-              0,
-              100
-            ],
+              0.0,
+              0.0,
+              100.0
+            ]
+          },
+          {
             "input": {
               "type": "coordinate_system",
+              "ref": "000006",
               "path": {
                 "type": "zarr",
                 "format": "relative",
                 "href": "./nuclei"
-              },
-              "ref": "0192f3a0-7c1e-7b00-9c22-000000000021"
+              }
             },
             "output": {
               "type": "coordinate_system",
-              "ref": "0192f3a0-7c1e-7b00-9c22-000000000005"
-            }
+              "ref": "000004"
+            },
+            "type": "translation",
+            "translation": [
+              0.0,
+              0.0,
+              100.0
+            ]
           }
         ]
       }
@@ -92,7 +92,7 @@
     "nodes": [
       {
         "type": "multiscale",
-        "id": "0192f3a0-7c1e-7b00-9c22-000000000002",
+        "id": "000002",
         "name": "raw",
         "path": {
           "type": "zarr",
@@ -111,7 +111,7 @@
       },
       {
         "type": "multiscale",
-        "id": "0192f3a0-7c1e-7b00-9c22-000000000003",
+        "id": "000003",
         "name": "nuclei",
         "path": {
           "type": "zarr",
@@ -124,7 +124,7 @@
             "source": [
               {
                 "type": "multiscale",
-                "ref": "0192f3a0-7c1e-7b00-9c22-000000000002"
+                "ref": "000002"
               }
             ],
             "label_attributes": [
@@ -149,16 +149,6 @@
             ]
           }
         ]
-      },
-      {
-        "type": "multiscale",
-        "id": "0192f3a0-7c1e-7b00-9c22-000000000004",
-        "name": "published-reference",
-        "path": {
-          "type": "zarr",
-          "format": "http",
-          "href": "https://example.org/data/reference.ome.zarr"
-        }
       }
     ]
   }
