@@ -600,7 +600,6 @@ This new interface replaces the dataset metadata defined in the previous version
 
 `Array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the root object of the `ome` key.
 Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscale-node), which is a leaf node.
-`Array` objects conform to the [`Declaration` interface](#declaration-interface), so that coordinate transformations can reference them by `id`.
 
 (rfcs:rfc8:array-node-schema)=
 ##### Schema
