@@ -146,7 +146,7 @@ illustrating individual aspects of the proposal, e.g.:
     "ome": {
         "version": "0.x",
         "type": "multiscale",
-        "id": "01a13520-b697-70c4-979b-b52c01fbbe30",
+        "id": "000001",
         "name": "our_first_example",
         "data": [
           {
@@ -287,9 +287,11 @@ All IDs MUST follow these rules:
 
 - IDs MUST be non-empty strings.
 - IDs MUST only use characters in the sets `a-z`, `A-Z`, `0-9`, `-`, `_` and `.`.
-- IDs MAY be UUIDs, in which case they SHOULD be UUIDv7+.
+- IDs MAY be UUIDs, in which case they SHOULD be UUIDv7+, e.g. `01a13520-b697-70c4-979b-b52c01fbbe30`.
 - IDs SHOULD NOT encode semantics, such as the name, type or location of the declared object, because such information may change while the ID needs to stay stable (see [McMurry et al. 2017](https://doi.org/10.1371/journal.pbio.2001414)).
   Human-readable information belongs in other fields, e.g. `name`.
+
+For readability, the examples in this document use short IDs such as `"000001"`.
 
 (rfcs:rfc8:declaration-interface)=
 #### `Declaration` interface
@@ -321,13 +323,13 @@ A reference is either a string (the short form) or an object (the full form).
 A reference to a coordinate system that is declared in the same document, in the short form:
 
 ```jsonc
-"output": "physical"
+"output": "000002"
 ```
 
 The same reference in the full form:
 
 ```jsonc
-"output": { "type": "coordinate_system", "ref": "physical" }
+"output": { "type": "coordinate_system", "ref": "000002" }
 ```
 
 A reference to a coordinate system that is declared in another document:
@@ -336,7 +338,7 @@ A reference to a coordinate system that is declared in another document:
 "input": {
   "type": "coordinate_system",
   "path": { "type": "zarr", "format": "relative", "href": "./raw" },
-  "ref": "physical"
+  "ref": "000005"
 }
 ```
 
@@ -456,7 +458,7 @@ This is particularly useful for defining the nodes that are stored within a Zarr
             // Our `collection`-typed node fields
             // are listed here
             "type": "collection",
-            "id": "01a1354d-7cd7-724f-96d6-29c9d60bbf28",
+            "id": "000001",
             "name": "zarr.json-example",
             "nodes": [...]
         }
@@ -478,7 +480,7 @@ Standalone files are useful for persisting groupings of images that may or may n
         // Our `collection`-typed node fields
         // are listed here
         "type": "collection",
-        "id": "01a1354d-7cd7-7658-95d8-4f1e9cadc9c6",
+        "id": "000001",
         "name": "standalone-example",
         "nodes": [...]
     }
@@ -505,12 +507,12 @@ This also applies to nested collections: their `zarr.json` documents may be cons
         "ome": {
             "version": "0.x",
             "type": "collection",
-            "id": "01a1354d-7cd7-724f-96d6-29c9d60bbf28",
+            "id": "000001",
             "name": "consolidated-example",
             "nodes": [
                 {
                     "type": "multiscale",
-                    "id": "01a1354d-7cd7-7a1e-8f3c-2b6d4e5f7a81",
+                    "id": "000002",
                     "name": "image",
                     "path": { "type": "zarr", "format": "relative", "href": "./image" }
                 }
@@ -589,11 +591,11 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
   "ome": {
       "version": "0.x",
       "type": "collection",
-      "id": "01a13543-f211-74ac-b6d8-da304a733e68",
+      "id": "000001",
       "name": "proj_gallery",
       "nodes": [{
           "type": "collection",
-          "id": "01a1c894-073b-74b6-a792-8d96c275a594",
+          "id": "000002",
           "name": "gallery1",
           "path": {
             "type": "json",
@@ -641,7 +643,7 @@ the `input` is the `Array` object itself, and the `output` is the highest-resolu
   "ome": {
     "version": "0.x",
     "type": "multiscale",
-    "id": "01a13da8-7b6e-7030-ac88-b8013ef53020",
+    "id": "000001",
     "name": "our_first_pyramid",
     "coordinateSystems": [...],
     "coordinateTransformations": [...],
@@ -701,7 +703,7 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
     "ome": {
         "version": "0.x",
         "type": "multiscale",
-        "id": "01a1354c-9611-72bb-b440-6db340b0f0bd",
+        "id": "000001",
         "name": "imagepyramid1",
         "data": [
           {
@@ -738,11 +740,11 @@ Coordinate systems and transformations can be stored in two distinct locations:
       "input": {
         // references coordinate system 'physical' defined in image_1
         "type": "coordinate_system",
-        "ref": "01a13dae-bfca-77db-9ee9-7d0de8967ff3",
+        "ref": "000005",
         "path": {"type": "zarr", "format": "relative", "href": "./image_1"}
       },
       // references coordinate system 'world' defined in the same document
-      "output": "01a13e01-a07b-711a-9443-6b8fe29e8422"
+      "output": "000002"
     }
   ]
 }
@@ -759,14 +761,14 @@ A coordinate system that is declared in another document is referenced with an o
     "version": "0.x",
     "type": "collection",
     "name": "Tiles",
-    "id": "01a1354d-7cd7-78c5-bda9-cb72c508924d",
+    "id": "000001",
     "traits": [
       {
         "type": "scene",
         "coordinateSystems": [
           {
             "type": "coordinate_system",
-            "id": "01a13e01-a07b-711a-9443-6b8fe29e8422",
+            "id": "000002",
             "name": "world",
             "axes": [...]
           }
@@ -777,28 +779,28 @@ A coordinate system that is declared in another document is referenced with an o
             "translation": [0, 0, 100],
             "input": {
               "type": "coordinate_system",
-              "ref": "01a13dae-bfca-77db-9ee9-7d0de8967ff3",  //physical
+              "ref": "000005",
               "path": {
                 "type": "zarr",
                 "format": "relative",
                 "href": "./tile_0.zarr"
-              },
+              }
             },  // references coordinate system "physical" defined in tile_0
-            "output": "01a13e01-a07b-711a-9443-6b8fe29e8422"  // references coordinate system "world" defined in same node
+            "output": "000002"  // references coordinate system "world" defined in same node
           },
           {
             "type": "translation",
             "translation": [100, 0, 0],
             "input": {
               "type": "coordinate_system",
-              "ref": "01a13e05-943e-77e2-b23d-190a5c03f019",  // physical
+              "ref": "000006",
               "path": {
                 "type": "zarr",
                 "format": "relative",
                 "href": "./tile_1.zarr"
               }
             },  // references coordinate system "physical" defined in tile_1
-            "output": "01a13e01-a07b-711a-9443-6b8fe29e8422"  // references coordinate system "world" defined in same node
+            "output": "000002"  // references coordinate system "world" defined in same node
           }
         ]
       }
@@ -806,7 +808,7 @@ A coordinate system that is declared in another document is referenced with an o
     "nodes": [
       {
         "type": "multiscale",
-        "id": "01a1354d-7cd7-70c1-ba68-99bbccce4122",
+        "id": "000003",
         "name": "Tile 0",
         "path": {
           "type": "zarr",
@@ -816,7 +818,7 @@ A coordinate system that is declared in another document is referenced with an o
       },
       {
         "type": "multiscale",
-        "id": "01a1354d-7cd7-7dc3-b31d-f5f168a71e87",
+        "id": "000004",
         "name": "Tile 1",
         "path": {
           "type": "zarr",
@@ -862,8 +864,8 @@ Depending on the context, the `input` and `output` references point to different
 
 | Context | `input` | `output` |
 | - | - | - |
-| **scene** | `"01a13e16-c6d6-7057-8a73-7d977c754ea3"` or `{"type": "coordinate_system", "path": {..., "href": "./imageA"}, "ref": "01a13e16-c6d6-7057-8a73-7d977c754ea3"}` | `"01a13e16-ff87-701f-a77e-b357eca9fd64"` or `{"type": "coordinate_system", "path": {..., "href": "./imageB"}, "ref": "01a13e16-ff87-701f-a77e-b357eca9fd64"}` |
-| **Multiscale > coordinateTransformations** | `"01a13e17-4776-72aa-8a9a-f1101d555fc2"` (the enclosing multiscale) | `"01a13e17-9425-7457-b728-9b545e3bf661"` |
+| **scene** | `"000002"` or `{"type": "coordinate_system", "path": {..., "href": "./imageA"}, "ref": "000005"}` | `"000003"` or `{"type": "coordinate_system", "path": {..., "href": "./imageB"}, "ref": "000006"}` |
+| **Multiscale > coordinateTransformations** | `"000001"` (the enclosing multiscale) | `"000002"` |
 
 **Multiscale > coordinateTransformations**: In the context of multiscales transformations, the following requirements apply:
 - The `input` field MUST be a reference of type `multiscale` to the enclosing [`Multiscale` node](#multiscale-node).
@@ -1187,20 +1189,25 @@ In this example, a `https://ngff.example.com/transforms/` extension defines a cu
             }
         ],
         "type": "collection",
+        "id": "000001",
         "nodes": [ /* ... */ ],
         "traits": [
             {
                 "type": "scene",
                 "coordinateSystems": [
                     {
-                        "id": "physical",
+                        "type": "coordinate_system",
+                        "id": "000002",
+                        "name": "physical",
                         "axes": [
                             {"name": "y", "type": "space", "units": "micrometer"},
                             {"name": "x", "type": "space", "units": "micrometer"}
                         ]
                     },
                     {
-                        "id": "registered",
+                        "type": "coordinate_system",
+                        "id": "000003",
+                        "name": "registered",
                         "axes": [
                             {"name": "y", "type": "space", "units": "micrometer"},
                             {"name": "x", "type": "space", "units": "micrometer"}
@@ -1210,8 +1217,8 @@ In this example, a `https://ngff.example.com/transforms/` extension defines a cu
                 "coordinateTransformations": [
                     {
                         "type": "https://ngff.example.com/transforms/ThinPlateSpline",
-                        "input": "physical",
-                        "output": "registered",
+                        "input": "000002",
+                        "output": "000003",
                         "controlPoints": {
                             "type": "zarr",
                             "format": "relative",
@@ -1263,11 +1270,12 @@ In this example, two OME-Zarr viewers, “Viewer A” and “Viewer B” each ha
             }
         ],
         "type": "collection",
+        "id": "000001",
         "nodes": [
             {
                 "name": "nuclei",
                 "type": "multiscale",
-                "id": "01a1c896-7b37-75e4-b480-c34316769b55",
+                "id": "000002",
                 "path": {"type": "zarr", "format": "relative", "href": "./nuclei"},
                 "traits": [
                     {
@@ -1486,7 +1494,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "version": "0.x",
     "type": "multiscale",
     "name": "multiscales_example",
-    "id": "01a13e2d-61b2-7760-9c2a-1aef3d3eeed6",
+    "id": "000001",
     "data": [
       {
         "type": "array",
@@ -1500,7 +1508,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "coordinateSystems": [
       {
         "type": "coordinate_system",
-        "id": "01a13e2f-a19f-7735-9802-e48c70b1a089",
+        "id": "000002",
         "name": "physical",
         "axes": [...]
       }
@@ -1517,7 +1525,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "version": "0.x",
     "type": "multiscale",
     "name": "multiscales_example",
-    "id": "01a13e2d-61b2-7760-9c2a-1aef3d3eeed6",
+    "id": "000001",
     "data": [
       {
         "type": "array",
@@ -1543,7 +1551,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "coordinateSystems": [
       {
         "type": "coordinate_system",
-        "id": "01a13e2f-a19f-7735-9802-e48c70b1a089",
+        "id": "000002",
         "name": "physical",
         "axes": [...]
       }
@@ -1551,9 +1559,9 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "coordinateTransformations": [
       {
         "type": "scale",
-        "scale": [0.9, 0.45, 0.45]
-        "input": "01a13e2d-61b2-7760-9c2a-1aef3d3eeed6",
-        "output": "01a13e2f-a19f-7735-9802-e48c70b1a089"
+        "scale": [0.9, 0.45, 0.45],
+        "input": "000001",
+        "output": "000002"
       }
     ]
   }
@@ -1567,11 +1575,13 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "ome": {
         "version": "0.x",
         "type": "collection",
+        "id": "000001",
         "name": "jrc_hela-1",
         "nodes": [
           {
             "name": "raw",
             "type": "multiscale",
+            "id": "000002",
             "path": {
               "type": "zarr",
               "format": "relative",
@@ -1589,6 +1599,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
           {
               "name": "nested_collection",
               "type": "collection",
+              "id": "000003",
               "path": {
                 "type": "json",
                 "format": "relative",
@@ -1608,11 +1619,12 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
     "ome": {
         "version": "0.x",
         "type": "collection",
+        "id": "000001",
         "name": "example",
         "nodes": [
           {
             "name": "raw",
-            "id": "01a13e40-df14-7774-aafd-aa1a8defcfdd",
+            "id": "000002",
             "type": "multiscale",
             "data": [
               {
@@ -1629,14 +1641,14 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
               {
                 "type": "scale",
                 "scale": [1, 1, 1],
-                "input": "01a13e40-df14-7774-aafd-aa1a8defcfdd",
-                "output": "01a13e41-6a7e-77e5-aa09-f0017d392a6b"
+                "input": "000002",
+                "output": "000003"
               }
             ],
             "coordinateSystems": [
               {
                 "type": "coordinate_system",
-                "id": "01a13e41-6a7e-77e5-aa09-f0017d392a6b",
+                "id": "000003",
                 "name": "physical",
                 "axes": [...]
               }
