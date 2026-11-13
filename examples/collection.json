@@ -54,10 +54,7 @@
                 "href": "./raw"
               }
             },
-            "output": {
-              "type": "coordinate_system",
-              "ref": "000004"
-            },
+            "output": "000004",
             "type": "translation",
             "translation": [
               0.0,
@@ -75,10 +72,7 @@
                 "href": "./nuclei"
               }
             },
-            "output": {
-              "type": "coordinate_system",
-              "ref": "000004"
-            },
+            "output": "000004",
             "type": "translation",
             "translation": [
               0.0,

@@ -311,13 +311,20 @@ Declarations use the `id` key and references use the `ref` key, so that a declar
 (rfcs:rfc8:reference-interface)=
 #### `Reference` interface
 
-The `Reference` interface is a consistent system for referring to local and remote OME-Zarr metadata objects.
+The `Reference` interface is a consistent system for referring to OME-Zarr metadata objects.
 A reference points to an object that is [declared](#declaration-interface) elsewhere, e.g. in the `input` and `output` fields of coordinate transformations.
+A reference is either a string (the short form) or an object (the full form).
 
 (rfcs:rfc8:reference-interface-example)=
 ##### Example
 
-A reference to a coordinate system that is declared in the same document:
+A reference to a coordinate system that is declared in the same document, in the short form:
+
+```jsonc
+"output": "physical"
+```
+
+The same reference in the full form:
 
 ```jsonc
 "output": { "type": "coordinate_system", "ref": "physical" }
@@ -336,7 +343,13 @@ A reference to a coordinate system that is declared in another document:
 (rfcs:rfc8:reference-interface-schema)=
 ##### Schema
 
-A reference MUST be an object with the following fields:
+A reference MUST be either a string or an object.
+
+A string reference MUST be the `id` of a declaration in the current metadata document.
+A string reference MAY only be used where the field that holds it determines the `type` of the referenced declaration, e.g. the `output` of a coordinate transformation, which always references a coordinate system.
+A string reference is equivalent to an object reference whose `type` is the type determined by the field, whose `ref` is the string, and which has no `path`.
+
+An object reference MUST have the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
@@ -344,16 +357,17 @@ A reference MUST be an object with the following fields:
 | `"ref"` | string | yes | Value MUST be the `id` of the referenced declaration. |
 | `"path"` | object | no | Value MUST be a `Path` object locating the document that contains the referenced declaration. |
 
-A reference MUST NOT contain any other fields.
+An object reference MUST NOT contain any other fields.
 In particular, a reference MUST NOT carry traits or child nodes; these belong to the declaration.
 
 (rfcs:rfc8:reference-interface-resolution)=
 ##### Resolution
 
-- If `path` is absent, `ref` is resolved within the current metadata document.
-- If `path` is present, `ref` is resolved within the metadata document that `path` locates.
-- The resolved declaration MUST have the `type` that the reference names.
-  Implementations MUST report an error if no declaration with the given `ref` exists in the resolved document, or if its `type` does not match.
+- A string reference is resolved within the current metadata document.
+- If the `path` of an object reference is absent, `ref` is resolved within the current metadata document.
+- If the `path` of an object reference is present, `ref` is resolved within the metadata document that `path` locates.
+- The resolved declaration MUST have the `type` that the reference names or, for a string reference, the type that the field determines.
+  Implementations MUST report an error if no declaration with the given ID exists in the resolved document, or if its `type` does not match.
 
 (rfcs:rfc8:abstract-structure)=
 ### Abstract structure
@@ -725,21 +739,19 @@ Coordinate systems and transformations can be stored in two distinct locations:
         // references coordinate system 'physical' defined in image_1
         "type": "coordinate_system",
         "ref": "01a13dae-bfca-77db-9ee9-7d0de8967ff3",
-        "name": "physical",
-        "path": {"type": "zarr", "format": "relative", "href": "./image_1"},
+        "path": {"type": "zarr", "format": "relative", "href": "./image_1"}
       },
-      "output": {
-        // references coordinate system 'world' defined in the same document
-        "ref": "01a13e01-a07b-711a-9443-6b8fe29e8422",
-        "name": "world"
-      }
+      // references coordinate system 'world' defined in the same document
+      "output": "01a13e01-a07b-711a-9443-6b8fe29e8422"
     }
   ]
 }
 ```
 
 In a change from RFC-5, coordinate systems are referenced by ID and not by name.
-Each `input` and `output` is a typed [`Reference`](#reference-interface) that names the kind of the target (e.g. `coordinate_system`) and its `id` in the `ref` field.
+Each `input` and `output` is a [`Reference`](#reference-interface).
+A coordinate system that is declared in the same document is referenced by its ID as a string.
+A coordinate system that is declared in another document is referenced with an object reference that names the kind of the target (`coordinate_system`), its ID in the `ref` field, and the `path` of the document.
 
 ```jsonc
 {
@@ -772,10 +784,7 @@ Each `input` and `output` is a typed [`Reference`](#reference-interface) that na
                 "href": "./tile_0.zarr"
               },
             },  // references coordinate system "physical" defined in tile_0
-            "output": {
-              "type": "coordinate_system",
-              "ref": "01a13e01-a07b-711a-9443-6b8fe29e8422"
-            }  // references coordinate system "world" defined in same node
+            "output": "01a13e01-a07b-711a-9443-6b8fe29e8422"  // references coordinate system "world" defined in same node
           },
           {
             "type": "translation",
@@ -789,10 +798,7 @@ Each `input` and `output` is a typed [`Reference`](#reference-interface) that na
                 "href": "./tile_1.zarr"
               }
             },  // references coordinate system "physical" defined in tile_1
-            "output": {
-              "type": "coordinate_system",
-              "ref": "01a13e01-a07b-711a-9443-6b8fe29e8422"
-            }  // references coordinate system "world" defined in same node
+            "output": "01a13e01-a07b-711a-9443-6b8fe29e8422"  // references coordinate system "world" defined in same node
           }
         ]
       }
@@ -847,8 +853,8 @@ The `Coordinate Transformation` objects have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be a valid coordinate transform type, as defined in RFC-5. |
-| `"input"` | object | yes | Value MUST be a typed [`Reference`](#reference-interface) to the input of the transformation. |
-| `"output"` | object | yes | Value MUST be a typed [`Reference`](#reference-interface) to the output of the transformation. |
+| `"input"` | string or object | yes | Value MUST be a [`Reference`](#reference-interface) to the input of the transformation. |
+| `"output"` | string or object | yes | Value MUST be a [`Reference`](#reference-interface) to the output of the transformation. |
 
 Additional fields MAY be added as required by the transform type.
 
@@ -856,22 +862,22 @@ Depending on the context, the `input` and `output` references point to different
 
 | Context | `input` | `output` |
 | - | - | - |
-| **scene** | `{"type": "coordinate_system", path: {..., "href": "./imageA"}, "ref": "01a13e16-c6d6-7057-8a73-7d977c754ea3"}` | `{"type": "coordinate_system", path: {..., "href": "./imageA"}, "ref": "01a13e16-ff87-701f-a77e-b357eca9fd64"}` |
-| **Multiscale > coordinateTransformations** | {"type": "multiscale", "ref": "01a13e17-4776-72aa-8a9a-f1101d555fc2"} | { "type": "coordinate_system", "ref": "01a13e17-9425-7457-b728-9b545e3bf661"} |
+| **scene** | `"01a13e16-c6d6-7057-8a73-7d977c754ea3"` or `{"type": "coordinate_system", "path": {..., "href": "./imageA"}, "ref": "01a13e16-c6d6-7057-8a73-7d977c754ea3"}` | `"01a13e16-ff87-701f-a77e-b357eca9fd64"` or `{"type": "coordinate_system", "path": {..., "href": "./imageB"}, "ref": "01a13e16-ff87-701f-a77e-b357eca9fd64"}` |
+| **Multiscale > coordinateTransformations** | `"01a13e17-4776-72aa-8a9a-f1101d555fc2"` (the enclosing multiscale) | `"01a13e17-9425-7457-b728-9b545e3bf661"` |
 
 **Multiscale > coordinateTransformations**: In the context of multiscales transformations, the following requirements apply:
 - The `input` field MUST be a reference of type `multiscale` to the enclosing [`Multiscale` node](#multiscale-node).
   It stands for the highest-resolution `Array` object in the `data` field of the multiscale.
   Lower-resolution `Array` objects are related to the highest-resolution one by their [downsampling transformations](#downsampling-transformation-interface).
-- The `path` field MAY be omitted.
 - The `output` field MUST be a reference of type `coordinate_system` to a coordinate system in the `coordinateSystems` field of the multiscale.
 - The `output` fields of all transformations MUST reference the same coordinate system.
+- Both references SHOULD be strings.
 
 **Node/Multiscales > scene > coordinateTransformations**:
 In the context of node-level transformations between different multiscales, the following requirements apply:
 - The `input` and `output` fields MUST be references of type `coordinate_system`.
-- If the referenced coordinate system is declared in the same metadata document, the `path` field MAY be omitted.
-- If the referenced coordinate system is declared in a different metadata document, the `path` field MUST be present.
+- If the referenced coordinate system is declared in the same metadata document, the reference SHOULD be a string.
+- If the referenced coordinate system is declared in a different metadata document, the reference MUST be an object with a `path` field.
 
 ##### `Downsampling Transformation` interface
 

@@ -30,14 +30,8 @@
     ],
     "coordinateTransformations": [
       {
-        "input": {
-          "type": "multiscale",
-          "ref": "000002"
-        },
-        "output": {
-          "type": "coordinate_system",
-          "ref": "000005"
-        },
+        "input": "000002",
+        "output": "000005",
         "type": "scale",
         "scale": [
           0.5,
