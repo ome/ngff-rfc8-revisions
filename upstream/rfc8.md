@@ -150,7 +150,6 @@ illustrating individual aspects of the proposal, e.g.:
         "name": "our_first_example",
         "data": [
           {
-            "id": "01a13da0-6c3b-7600-b6f5-4ef2414b2f14",
             "name": "s0",
             "type": "array",
             "path": {
@@ -296,13 +295,13 @@ All IDs MUST follow these rules:
 #### `Declaration` interface
 
 Every object that can be referenced is declared exactly once.
-A declaration is the place where an object's `id` and its other fields are defined, e.g. an entry in a `nodes`, `data` or `coordinateSystems` array.
+A declaration is the place where an object's `id` and its other fields are defined, e.g. an entry in a `nodes` or `coordinateSystems` array.
 
 Every declaration MUST have the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
-| `"type"` | string | yes | Value MUST be the kind of the declared object, e.g. `"collection"` or `"multiscale"` for nodes, `"array"` for array objects, and `"coordinate_system"` for coordinate systems. |
+| `"type"` | string | yes | Value MUST be the kind of the declared object, e.g. `"collection"` or `"multiscale"` for nodes and `"coordinate_system"` for coordinate systems. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document. IDs MUST follow the [ID rules](#ids). |
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
@@ -609,7 +608,7 @@ Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscal
 | `"type"` | string | yes | Value MUST be `"array"`. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"downsamplingTransformations"` | object | no | The coordinate transformations from a lower-resolution scale to the highest resolution scale. |
+| `"downsamplingTransformations"` | array | no | Value MUST be an array of [`Downsampling Transformation`](#downsampling-transformation-interface) objects, from this resolution level to the highest-resolution level. |
 
 `Array` objects represent resolution levels within a multiscale pyramid.
 
@@ -617,10 +616,11 @@ Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscal
 ##### Field: `downsamplingTransformations`
 
 `Array` objects other than the highest-resolution object MUST have a `downsamplingTransformations` field, which
-- is an array of transformation objects, that conform to the [coordinate transformations](#coordinate-transformations) specification
+- is an array of objects that conform to the [`Downsampling Transformation` interface](#downsampling-transformation-interface).
 - contains and only contains either a single `scale` transformation, or a `scale` transformation followed by a `translation` transformation.
-- The `input` field of these transformations is implicitly the `Array` object itself.
-- The `output` field is implicitly the highest-resolution `Array` object in the `data` field of the enclosing `multiscale` node.
+
+The `input` and `output` of these transformations are implicit:
+the `input` is the `Array` object itself, and the `output` is the highest-resolution `Array` object in the `data` field of the enclosing `multiscale` node.
 
 ```jsonc
 {
@@ -691,7 +691,6 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
         "name": "imagepyramid1",
         "data": [
           {
-            "id": "01a13daa-329c-7242-9610-af256d94c029",
             "name": "s0",
             "type": "array",
             "path": {
@@ -858,12 +857,14 @@ Depending on the context, the `input` and `output` references point to different
 | Context | `input` | `output` |
 | - | - | - |
 | **scene** | `{"type": "coordinate_system", path: {..., "href": "./imageA"}, "ref": "01a13e16-c6d6-7057-8a73-7d977c754ea3"}` | `{"type": "coordinate_system", path: {..., "href": "./imageA"}, "ref": "01a13e16-ff87-701f-a77e-b357eca9fd64"}` |
-| **Multiscale > coordinateTransformations** | {"type": "array", "ref": "01a13e17-4776-72aa-8a9a-f1101d555fc2"} | { "type": "coordinate_system", "ref": "01a13e17-9425-7457-b728-9b545e3bf661"} |
+| **Multiscale > coordinateTransformations** | {"type": "multiscale", "ref": "01a13e17-4776-72aa-8a9a-f1101d555fc2"} | { "type": "coordinate_system", "ref": "01a13e17-9425-7457-b728-9b545e3bf661"} |
 
 **Multiscale > coordinateTransformations**: In the context of multiscales transformations, the following requirements apply:
-- The `input` field MUST be a reference of type `array` to an [`Array` object](#array-object).
+- The `input` field MUST be a reference of type `multiscale` to the enclosing [`Multiscale` node](#multiscale-node).
+  It stands for the highest-resolution `Array` object in the `data` field of the multiscale.
+  Lower-resolution `Array` objects are related to the highest-resolution one by their [downsampling transformations](#downsampling-transformation-interface).
 - The `path` field MAY be omitted.
-- The `output` field MUST be a reference of type `coordinate_system`.
+- The `output` field MUST be a reference of type `coordinate_system` to a coordinate system in the `coordinateSystems` field of the multiscale.
 - The `output` fields of all transformations MUST reference the same coordinate system.
 
 **Node/Multiscales > scene > coordinateTransformations**:
@@ -872,24 +873,33 @@ In the context of node-level transformations between different multiscales, the 
 - If the referenced coordinate system is declared in the same metadata document, the `path` field MAY be omitted.
 - If the referenced coordinate system is declared in a different metadata document, the `path` field MUST be present.
 
-##### Downsampling Transformations
+##### `Downsampling Transformation` interface
 
-A Downsampling Transformation is a constrained version of the Coordinate
-Transformations interface. A downsampling transformation can be cast into a
-coordinate transformation, but all of its fields other than the type and
-parameters of the transformation are implicit, and the transformations are
-limited to one of:
-- scale
-- a sequence of a scale and a translation (the latter of which accounts for
-  offset of the origin pixel due to the downsampling grid)
+A downsampling transformation relates a lower-resolution `Array` object to the highest-resolution `Array` object of the same multiscale.
+It is a constrained version of the [`Coordinate Transformation` interface](#coordinate-transformation-interface):
+its `input` and `output` are implicit, and only the `scale` and `translation` types are allowed.
 
-The `input` of the transformation is the array coordinate system of the array
-object containing the transformation, and the `output` is the array coordinate
-system of the highest-resolution array in the `data` array of the multiscale node.
+The `Downsampling Transformation` objects have the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
-| `"type"` | string | yes | Value MUST be either `"scale"` or `"translation"`; a sequence of downsampling transformations MUST contain exactly one `"scale"` that MAY be followed by exactly one `"translation"` |
+| `"type"` | string | yes | Value MUST be either `"scale"` or `"translation"`. |
+| `"scale"` | array of numbers | if `type` is `"scale"` | Value MUST be as defined for the `scale` transformation in RFC-5. |
+| `"translation"` | array of numbers | if `type` is `"translation"` | Value MUST be as defined for the `translation` transformation in RFC-5. |
+
+A downsampling transformation MUST NOT contain any other fields; in particular, it MUST NOT contain `input` or `output` fields.
+
+A `downsamplingTransformations` array MUST contain exactly one `"scale"` transformation, which MAY be followed by exactly one `"translation"` transformation.
+The translation accounts for the offset of the origin pixel due to the downsampling grid.
+
+The downsampling transformations of an `Array` object can be cast into a coordinate transformation by adding the implicit fields:
+
+- The `input` is the array coordinate system of the `Array` object that contains the transformations.
+- The `output` is the array coordinate system of the highest-resolution `Array` object in the `data` field of the enclosing `Multiscale` node.
+- A single `scale` is cast into a `scale` transformation.
+  A `scale` followed by a `translation` is cast into a `sequence` transformation that applies them in that order.
+
+The result conforms to the [`Coordinate Transformation` interface](#coordinate-transformation-interface).
 
 ##### `Scene` trait
 
@@ -1600,7 +1610,6 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
             "type": "multiscale",
             "data": [
               {
-                "id": "01a13e41-0673-7318-96ca-f56480904ce0",
                 "name": "raw_0",
                 "type": "array",
                 "path": {
@@ -1614,7 +1623,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
               {
                 "type": "scale",
                 "scale": [1, 1, 1],
-                "input": "01a13e41-0673-7318-96ca-f56480904ce0",
+                "input": "01a13e40-df14-7774-aafd-aa1a8defcfdd",
                 "output": "01a13e41-6a7e-77e5-aa09-f0017d392a6b"
               }
             ],
