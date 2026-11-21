@@ -230,8 +230,7 @@ OME-Zarr specification.
 Locators locate any referenceable object in OME-Zarr metadata, whether it is declared in the same metadata document or in another one,
 e.g. [nodes](#node-interface), coordinate systems and the Zarr arrays of [`Array` objects](#array-object).
 A locator is stored in a `ref` field, e.g. of a node, of an `Array` object or of a [`Reference`](#reference-interface).
-The design of locators is based on the [URL pipeline specification](https://github.com/jbms/url-pipeline) by Jeremy Maitin-Shephard
-and its adaptation to OME-Zarr metadata in a [proposal by Chris Barnes](https://forum.image.sc/t/2026-ome-zarr-hackathon-zurich-links-references-between-ome-zarr-nodes-and-metadata/123084) (see [Prior art](#locators-and-url-pipelines)).
+See [Locators and URL pipelines](#locators-and-url-pipelines) for prior art.
 
 The value of a `ref` field is a locator: an ordered, non-empty array of locator steps.
 The steps form a pipeline: each step resolves relative to the result of the previous step.
