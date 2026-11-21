@@ -229,7 +229,7 @@ This new interface replaces the paths defined in the previous versions of the
 OME-Zarr specification.
 Locators locate any referenceable object in OME-Zarr metadata, whether it is declared in the same metadata document or in another one,
 e.g. [nodes](#node-interface), coordinate systems and the Zarr arrays of [`Array` objects](#array-object).
-A locator is stored in a `ref` field, e.g. of a node, of an `Array` object or of a [`Reference`](#reference-interface).
+A locator is stored in the `ref` field of a node or an `Array` object, or directly as the value of a field that holds a [`Reference`](#reference-interface).
 See [Locators and URL pipelines](#locators-and-url-pipelines) for prior art.
 
 The value of a `ref` field is a locator: an ordered, non-empty array of locator steps.
@@ -335,7 +335,7 @@ Resolving node locators MUST NOT form a cycle: a node's `ref` MUST NOT resolve t
 Implementations MUST detect cycles and MUST stop resolving and report an error when they encounter one.
 
 This rule applies to the `ref` fields of nodes.
-The `ref` field of a [`Reference`](#reference-interface) only locates the referenced object and MAY point back to an enclosing document, e.g. from a resolution level to the coordinate systems of its multiscale.
+A [`Reference`](#reference-interface) only locates the referenced object and MAY point back to an enclosing document, e.g. from a resolution level to the coordinate systems of its multiscale.
 
 (rfcs:rfc8:ids)=
 #### IDs
@@ -366,7 +366,7 @@ Every declaration MUST have the following fields:
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
 Everywhere else, the object is referred to with a [`Reference`](#reference-interface).
-Declarations have an `id` field and references do not, so that a declaration can always be distinguished from a reference.
+Declarations are objects with an `id` field and references are arrays, so that a declaration can always be distinguished from a reference.
 A declaration MAY have a `ref` field that locates where its content is stored, e.g. a node whose metadata is stored in another document.
 
 (rfcs:rfc8:reference-interface)=
@@ -374,7 +374,9 @@ A declaration MAY have a `ref` field that locates where its content is stored, e
 
 The `Reference` interface is a consistent system for referring to OME-Zarr metadata objects.
 A reference points to an object that is [declared](#declaration-interface) elsewhere, e.g. in the `input` and `output` fields of coordinate transformations.
-A reference names the `type` of the referenced declaration and locates it with a `ref` [locator](#locator-interface) that ends with an `id` step.
+A reference is a [locator](#locator-interface) whose last step is an `id` step.
+The field that holds a reference defines the `type` (or types) of declaration that the reference MUST resolve to,
+e.g. the `output` of a scene transformation MUST resolve to a `coordinate_system`.
 
 (rfcs:rfc8:reference-interface-example)=
 ##### Example
@@ -382,30 +384,20 @@ A reference names the `type` of the referenced declaration and locates it with a
 A reference to a coordinate system that is declared in the same document:
 
 ```jsonc
-"output": { "type": "coordinate_system", "ref": [{"type": "id", "id": "000002"}] }
+"output": [{"type": "id", "id": "000002"}]
 ```
 
 A reference to a coordinate system that is declared in another document:
 
 ```jsonc
-"input": {
-  "type": "coordinate_system",
-  "ref": [{"type": "zarr", "path": "./raw"}, {"type": "id", "id": "000005"}]
-}
+"input": [{"type": "zarr", "path": "./raw"}, {"type": "id", "id": "000005"}]
 ```
 
 (rfcs:rfc8:reference-interface-schema)=
 ##### Schema
 
-A reference MUST be an object with the following fields:
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"type"` | string | yes | Value MUST be the `type` of the referenced declaration. |
-| `"ref"` | array | yes | Value MUST be a [locator](#locator-interface) whose last step is an `id` step. |
-
-A reference MUST NOT contain any other fields.
-In particular, a reference MUST NOT carry traits or child nodes; these belong to the declaration.
+A reference MUST be a [locator](#locator-interface), i.e. a non-empty array of locator steps, whose last step is an `id` step.
+A reference cannot carry traits, child nodes or any other fields; these belong to the declaration.
 
 (rfcs:rfc8:reference-interface-resolution)=
 ##### Resolution
@@ -413,8 +405,8 @@ In particular, a reference MUST NOT carry traits or child nodes; these belong to
 - The steps before the final `id` step locate the metadata document that contains the referenced declaration.
   If the `id` step is the only step, the declaration is resolved within the current metadata document.
 - The final `id` step selects the declaration with the given ID in that document.
-- The resolved declaration MUST have the `type` that the reference names.
-  Implementations MUST report an error if no declaration with the given ID exists in the resolved document, or if its `type` does not match.
+- The resolved declaration MUST have a `type` that the holding field allows.
+  Implementations MUST report an error if no declaration with the given ID exists in the resolved document, or if its `type` is not allowed by the holding field.
 
 (rfcs:rfc8:abstract-structure)=
 ### Abstract structure
@@ -776,13 +768,10 @@ Coordinate systems and transformations can be stored in two distinct locations:
     {
       "type": "translation",
       "translation": [0, 0, 100],
-      "input": {
-        // references coordinate system 'physical' defined in image_1
-        "type": "coordinate_system",
-        "ref": [{"type": "zarr", "path": "./image_1"}, {"type": "id", "id": "000005"}]
-      },
+      // references coordinate system 'physical' defined in image_1
+      "input": [{"type": "zarr", "path": "./image_1"}, {"type": "id", "id": "000005"}],
       // references coordinate system 'world' defined in the same document
-      "output": {"type": "coordinate_system", "ref": [{"type": "id", "id": "000002"}]}
+      "output": [{"type": "id", "id": "000002"}]
     }
   ]
 }
@@ -790,8 +779,8 @@ Coordinate systems and transformations can be stored in two distinct locations:
 
 In a change from RFC-5, coordinate systems are referenced by ID and not by name.
 Each `input` and `output` is a [`Reference`](#reference-interface).
-A coordinate system that is declared in the same document is referenced with a `ref` that consists of a single `id` step.
-A coordinate system that is declared in another document is referenced with a `ref` whose steps first locate that document and then select the coordinate system with an `id` step.
+A coordinate system that is declared in the same document is referenced with a locator that consists of a single `id` step.
+A coordinate system that is declared in another document is referenced with a locator whose steps first locate that document and then select the coordinate system with an `id` step.
 
 ```jsonc
 {
@@ -815,20 +804,14 @@ A coordinate system that is declared in another document is referenced with a `r
           {
             "type": "translation",
             "translation": [0, 0, 100],
-            "input": {
-              "type": "coordinate_system",
-              "ref": [{"type": "zarr", "path": "./tile_0.zarr"}, {"type": "id", "id": "000005"}]
-            },  // references coordinate system "physical" defined in tile_0
-            "output": {"type": "coordinate_system", "ref": [{"type": "id", "id": "000002"}]}  // references coordinate system "world" defined in same node
+            "input": [{"type": "zarr", "path": "./tile_0.zarr"}, {"type": "id", "id": "000005"}],  // references coordinate system "physical" defined in tile_0
+            "output": [{"type": "id", "id": "000002"}]  // references coordinate system "world" defined in same node
           },
           {
             "type": "translation",
             "translation": [100, 0, 0],
-            "input": {
-              "type": "coordinate_system",
-              "ref": [{"type": "zarr", "path": "./tile_1.zarr"}, {"type": "id", "id": "000006"}]
-            },  // references coordinate system "physical" defined in tile_1
-            "output": {"type": "coordinate_system", "ref": [{"type": "id", "id": "000002"}]}  // references coordinate system "world" defined in same node
+            "input": [{"type": "zarr", "path": "./tile_1.zarr"}, {"type": "id", "id": "000006"}],  // references coordinate system "physical" defined in tile_1
+            "output": [{"type": "id", "id": "000002"}]  // references coordinate system "world" defined in same node
           }
         ]
       }
@@ -875,8 +858,8 @@ The `Coordinate Transformation` objects have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be a valid coordinate transform type, as defined in RFC-5. |
-| `"input"` | object | yes | Value MUST be a [`Reference`](#reference-interface) to the input of the transformation. |
-| `"output"` | object | yes | Value MUST be a [`Reference`](#reference-interface) to the output of the transformation. |
+| `"input"` | array | yes | Value MUST be a [`Reference`](#reference-interface) to the input of the transformation. |
+| `"output"` | array | yes | Value MUST be a [`Reference`](#reference-interface) to the output of the transformation. |
 
 Additional fields MAY be added as required by the transform type.
 
@@ -884,22 +867,22 @@ Depending on the context, the `input` and `output` references point to different
 
 | Context | `input` | `output` |
 | - | - | - |
-| **scene** | `{"type": "coordinate_system", "ref": [{"type": "id", "id": "000002"}]}` or `{"type": "coordinate_system", "ref": [{"type": "zarr", "path": "./imageA"}, {"type": "id", "id": "000005"}]}` | `{"type": "coordinate_system", "ref": [{"type": "id", "id": "000003"}]}` or `{"type": "coordinate_system", "ref": [{"type": "zarr", "path": "./imageB"}, {"type": "id", "id": "000006"}]}` |
-| **Multiscale > coordinateTransformations** | `{"type": "multiscale", "ref": [{"type": "id", "id": "000001"}]}` (the enclosing multiscale) | `{"type": "coordinate_system", "ref": [{"type": "id", "id": "000002"}]}` |
+| **scene** | `[{"type": "id", "id": "000002"}]` or `[{"type": "zarr", "path": "./imageA"}, {"type": "id", "id": "000005"}]` | `[{"type": "id", "id": "000003"}]` or `[{"type": "zarr", "path": "./imageB"}, {"type": "id", "id": "000006"}]` |
+| **Multiscale > coordinateTransformations** | `[{"type": "id", "id": "000001"}]` (the enclosing multiscale) | `[{"type": "id", "id": "000002"}]` |
 
 **Multiscale > coordinateTransformations**: In the context of multiscales transformations, the following requirements apply:
-- The `input` field MUST be a reference of type `multiscale` to the enclosing [`Multiscale` node](#multiscale-node).
+- The `input` field MUST be a reference to the enclosing [`Multiscale` node](#multiscale-node).
   It stands for the highest-resolution `Array` object in the `data` field of the multiscale.
   Lower-resolution `Array` objects are related to the highest-resolution one by their [downsampling transformations](#downsampling-transformation-interface).
-- The `output` field MUST be a reference of type `coordinate_system` to a coordinate system in the `coordinateSystems` field of the multiscale.
+- The `output` field MUST be a reference to a coordinate system in the `coordinateSystems` field of the multiscale.
 - The `output` fields of all transformations MUST reference the same coordinate system.
-- The `ref` of both references SHOULD consist of a single `id` step.
+- Both references SHOULD consist of a single `id` step.
 
 **Node/Multiscales > scene > coordinateTransformations**:
 In the context of node-level transformations between different multiscales, the following requirements apply:
-- The `input` and `output` fields MUST be references of type `coordinate_system`.
-- If the referenced coordinate system is declared in the same metadata document, the `ref` SHOULD consist of a single `id` step.
-- If the referenced coordinate system is declared in a different metadata document, the `ref` MUST contain steps that locate that document before the final `id` step.
+- The `input` and `output` fields MUST be references to coordinate systems.
+- If the referenced coordinate system is declared in the same metadata document, the reference SHOULD consist of a single `id` step.
+- If the referenced coordinate system is declared in a different metadata document, the reference MUST contain steps that locate that document before the final `id` step.
 
 ##### `Downsampling Transformation` interface
 
@@ -1249,8 +1232,8 @@ In this example, a `https://ngff.example.com/transforms/` extension defines a cu
                 "coordinateTransformations": [
                     {
                         "type": "https://ngff.example.com/transforms/ThinPlateSpline",
-                        "input": {"type": "coordinate_system", "ref": [{"type": "id", "id": "000002"}]},
-                        "output": {"type": "coordinate_system", "ref": [{"type": "id", "id": "000003"}]},
+                        "input": [{"type": "id", "id": "000002"}],
+                        "output": [{"type": "id", "id": "000003"}],
                         "controlPoints": {
                             "ref": [{"type": "zarr", "path": "./tps/control_points"}]
                         },
@@ -1581,8 +1564,8 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
       {
         "type": "scale",
         "scale": [0.9, 0.45, 0.45],
-        "input": {"type": "multiscale", "ref": [{"type": "id", "id": "000001"}]},
-        "output": {"type": "coordinate_system", "ref": [{"type": "id", "id": "000002"}]}
+        "input": [{"type": "id", "id": "000001"}],
+        "output": [{"type": "id", "id": "000002"}]
       }
     ]
   }
@@ -1651,8 +1634,8 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
               {
                 "type": "scale",
                 "scale": [1, 1, 1],
-                "input": {"type": "multiscale", "ref": [{"type": "id", "id": "000002"}]},
-                "output": {"type": "coordinate_system", "ref": [{"type": "id", "id": "000003"}]}
+                "input": [{"type": "id", "id": "000002"}],
+                "output": [{"type": "id", "id": "000003"}]
               }
             ],
             "coordinateSystems": [
