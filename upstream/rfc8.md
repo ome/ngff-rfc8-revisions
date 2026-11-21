@@ -230,7 +230,8 @@ OME-Zarr specification.
 Locators locate any referenceable object in OME-Zarr metadata, whether it is declared in the same metadata document or in another one,
 e.g. [nodes](#node-interface), coordinate systems and the Zarr arrays of [`Array` objects](#array-object).
 A locator is stored in a `ref` field, e.g. of a node, of an `Array` object or of a [`Reference`](#reference-interface).
-The design of locators is based on a [proposal by Chris Barnes](https://forum.image.sc/t/2026-ome-zarr-hackathon-zurich-links-references-between-ome-zarr-nodes-and-metadata/123084) (see [Prior art](#locators-and-url-pipelines)).
+The design of locators is based on the [URL pipeline specification](https://github.com/jbms/url-pipeline) by Jeremy Maitin-Shephard
+and its adaptation to OME-Zarr metadata in a [proposal by Chris Barnes](https://forum.image.sc/t/2026-ome-zarr-hackathon-zurich-links-references-between-ome-zarr-nodes-and-metadata/123084) (see [Prior art](#locators-and-url-pipelines)).
 
 The value of a `ref` field is a locator: an ordered, non-empty array of locator steps.
 The steps form a pipeline: each step resolves relative to the result of the previous step.
@@ -2131,10 +2132,12 @@ Several existing formats use different keys for declaring an object and for refe
 
 ### Locators and URL pipelines
 
-The [`Locator` interface](#locator-interface) implements the [proposal by Chris Barnes](https://forum.image.sc/t/2026-ome-zarr-hackathon-zurich-links-references-between-ome-zarr-nodes-and-metadata/123084) ([`clbarnes`](https://github.com/clbarnes)) for links and references between OME-Zarr nodes and metadata, made at the 2026 OME-Zarr hackathon in Zurich:
-a location is an ordered list of typed steps, each resolved relative to the result of the previous one, and new step types can be added by extensions.
+The [`Locator` interface](#locator-interface) builds on the [URL pipeline specification](https://github.com/jbms/url-pipeline) by Jeremy Maitin-Shephard ([`jbms`](https://github.com/jbms)).
+URL pipelines introduced the core idea: a location is a chain of steps (e.g. `https://…|zip:…|zarr3:…`), each resolved relative to the result of the previous one, and new kinds of steps can be added without changing the syntax.
 
-The [URL pipeline specification](https://github.com/jbms/url-pipeline) by Jeremy Maitin-Shephard follows the same idea and chains URL adapters (e.g. `https://…|zip:…|zarr3:…`) in a single string.
+Chris Barnes ([`clbarnes`](https://github.com/clbarnes)) adapted this idea to OME-Zarr metadata in a [proposal for links and references between OME-Zarr nodes and metadata](https://forum.image.sc/t/2026-ome-zarr-hackathon-zurich-links-references-between-ome-zarr-nodes-and-metadata/123084), made at the 2026 OME-Zarr hackathon in Zurich:
+the steps become typed JSON objects, and step types are an extension point.
+
 This RFC does not use URL pipelines directly. Locators are not limited to strings, and JSON is better at expressing structured data,
 e.g. steps with several fields or fields defined by extensions, which can be validated with JSON Schema.
 
