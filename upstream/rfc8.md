@@ -223,14 +223,14 @@ The following features are being deferred to sub-RFCs:
 The building blocks define how objects are represented using locators, declarations and references.
 
 (rfcs:rfc8:locator-interface)=
-#### `ref` locators
+#### `Locator` interface
 
 This new interface replaces the paths defined in the previous versions of the
 OME-Zarr specification.
 Every location in OME-Zarr metadata is expressed with a `ref` field: the location of a [node](#node-interface) stored in another document, of the Zarr array of an [`Array` object](#array-object), and of the object that a [`Reference`](#reference-interface) points to.
 
-The value of a `ref` field is a locator pipeline: an ordered, non-empty array of locator steps.
-Each step resolves relative to the result of the previous step.
+The value of a `ref` field is a locator: an ordered, non-empty array of locator steps.
+The steps form a pipeline: each step resolves relative to the result of the previous step.
 The first step resolves relative to the metadata document that contains the `ref` field.
 
 (rfcs:rfc8:locator-interface-example)=
@@ -294,7 +294,7 @@ Steps are resolved as follows:
 - A `json` step reads the file at the current location as a [standalone JSON](#standalone-json) metadata document, which becomes the current metadata document.
   Its directory becomes the current location.
 - An `id` step selects a declaration in the current metadata document.
-  An `id` step MUST be the last step of a pipeline.
+  An `id` step MUST be the last step of a locator.
   The value of its `id` field MUST follow the [ID rules](#ids).
 
 Implementations MUST report an error if a step cannot be applied to the result of the previous step, e.g. if a `json` step follows a `zarr` step.
@@ -303,7 +303,7 @@ Implementations MUST use the step types to determine how to access a location an
 The `type` field of a locator step is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
 An extension that defines a custom step type defines its fields and which results of a previous step it accepts and produces.
 Remote URLs, archives such as zip files, cloud storage and similar ways of locating data are expected to be defined as custom step types.
-Implementations that do not support a step type in a pipeline MUST NOT attempt to resolve the pipeline and SHOULD treat its target as unavailable.
+Implementations that do not support a step type in a locator MUST NOT attempt to resolve the locator and SHOULD treat its target as unavailable.
 
 (rfcs:rfc8:locator-interface-field-path)=
 ##### Field: `path`
@@ -370,7 +370,7 @@ A declaration MAY have a `ref` field that locates where its content is stored, e
 
 The `Reference` interface is a consistent system for referring to OME-Zarr metadata objects.
 A reference points to an object that is [declared](#declaration-interface) elsewhere, e.g. in the `input` and `output` fields of coordinate transformations.
-A reference names the `type` of the referenced declaration and locates it with a `ref` [locator pipeline](#ref-locators) that ends with an `id` step.
+A reference names the `type` of the referenced declaration and locates it with a `ref` [locator](#locator-interface) that ends with an `id` step.
 
 (rfcs:rfc8:reference-interface-example)=
 ##### Example
@@ -398,7 +398,7 @@ A reference MUST be an object with the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be the `type` of the referenced declaration. |
-| `"ref"` | array | yes | Value MUST be a [locator pipeline](#ref-locators) whose last step is an `id` step. |
+| `"ref"` | array | yes | Value MUST be a [locator](#locator-interface) whose last step is an `id` step. |
 
 A reference MUST NOT contain any other fields.
 In particular, a reference MUST NOT carry traits or child nodes; these belong to the declaration.
@@ -630,7 +630,7 @@ on a specific file system hierarchy.
 | `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
 | `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
 | `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
-| `"ref"` | array | no | Value MUST be a [locator pipeline](#ref-locators) that locates a metadata document. |
+| `"ref"` | array | no | Value MUST be a [locator](#locator-interface) that locates a metadata document. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
 
 Either `"nodes"` or `"ref"` MUST be present, but not both.
@@ -670,7 +670,7 @@ Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscal
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"array"`. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
-| `"ref"` | array | no | Value MUST be a [locator pipeline](#ref-locators) that locates a Zarr array, e.g. `[{"type": "zarr", "path": "./s0"}]`. It MUST NOT contain an `id` step. |
+| `"ref"` | array | no | Value MUST be a [locator](#locator-interface) that locates a Zarr array, e.g. `[{"type": "zarr", "path": "./s0"}]`. It MUST NOT contain an `id` step. |
 | `"downsamplingTransformations"` | array | no | Value MUST be an array of [`Downsampling Transformation`](#downsampling-transformation-interface) objects, from this resolution level to the highest-resolution level. |
 
 (rfcs:rfc8:array-node-field-downsamplingTransformations)=
@@ -728,7 +728,7 @@ A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 | `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
 | `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
 | `"data"` | array | no | Value MUST be an array of `Array` objects. [See array object](#array-object). |
-| `"ref"` | array | no | Value MUST be a [locator pipeline](#ref-locators) that locates a metadata document. |
+| `"ref"` | array | no | Value MUST be a [locator](#locator-interface) that locates a metadata document. |
 | `"coordinateSystems"` | array | yes | Value MUST be an array of `coordinateSystem` objects. |
 | `"coordinateTransformations"` | array | yes | Value MUST be an array of `coordinateTransformation` objects, the output of which MUST be present in the `coordinateSystems` array. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
@@ -1001,7 +1001,7 @@ An extension point is a `type` field within an object where (1) the value of the
 
 At such an extension point, a custom type may be used by specifying its identifier in the `type` field, in lieu of one of the values allowed by the specification. The custom type, as defined by the extension it belongs to, will then dictate how the object is to be interpreted.
 
-For example, the [locator steps](#ref-locators) proposed by this very RFC have an extension point: a step has a `type` field defined as accepting four values (`relative`, `zarr`, `json` and `id`); the value dictates how the entire step object is to be interpreted; and the specification explicitly states it is an extension point. An extension could then define a new, custom type of locator step.
+For example, the [locator steps](#locator-interface) proposed by this very RFC have an extension point: a step has a `type` field defined as accepting four values (`relative`, `zarr`, `json` and `id`); the value dictates how the entire step object is to be interpreted; and the specification explicitly states it is an extension point. An extension could then define a new, custom type of locator step.
 
 ### Extension manifest
 
@@ -1068,7 +1068,7 @@ Writers SHOULD set `mustUnderstand: true` for a given extension only when ignori
 #### A custom locator step
 
 This example illustrates an extension with ID `https://ngff.example.org/omero/` that adds a custom type of locator step that points to an image on an OMERO server rather than to a file.
-The step does not depend on a previous step, so it is the first step of the pipeline. It resolves to the metadata document of the OMERO image.
+The step does not depend on a previous step, so it is the first step of the locator. It resolves to the metadata document of the OMERO image.
 
 ```jsonc
 {
@@ -2426,7 +2426,7 @@ Most RFCs will not need to consider all the following issues. They are included 
 
 ### Security
 
-This proposal allows collection metadata to reference other metadata documents through `ref` locator pipelines.
+This proposal allows collection metadata to reference other metadata documents through `ref` locators.
 The core of this RFC only defines locator steps that resolve relative paths, which introduces the security considerations below that implementations MUST address.
 
 **Path traversal.** Relative paths (e.g. `../../sensitive/data`) may be used to reference files outside the intended storage scope.
