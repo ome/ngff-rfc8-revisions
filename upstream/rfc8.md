@@ -227,7 +227,10 @@ The building blocks define how objects are represented using locators, declarati
 
 This new interface replaces the paths defined in the previous versions of the
 OME-Zarr specification.
-Every location in OME-Zarr metadata is expressed with a `ref` field: the location of a [node](#node-interface) stored in another document, of the Zarr array of an [`Array` object](#array-object), and of the object that a [`Reference`](#reference-interface) points to.
+Locators locate any referenceable object in OME-Zarr metadata, whether it is declared in the same metadata document or in another one,
+e.g. [nodes](#node-interface), coordinate systems and the Zarr arrays of [`Array` objects](#array-object).
+A locator is stored in a `ref` field, e.g. of a node, of an `Array` object or of a [`Reference`](#reference-interface).
+The design of locators is based on a [proposal by Chris Barnes](https://forum.image.sc/t/2026-ome-zarr-hackathon-zurich-links-references-between-ome-zarr-nodes-and-metadata/123084) (see [Prior art](#locators-and-url-pipelines)).
 
 The value of a `ref` field is a locator: an ordered, non-empty array of locator steps.
 The steps form a pipeline: each step resolves relative to the result of the previous step.
@@ -290,6 +293,7 @@ Steps are resolved as follows:
 - A `relative` step changes the current location. It does not read any data.
 - A `zarr` step opens a Zarr node and makes it the current location.
   Implementations MUST append `zarr.json` to the location to access the metadata of the Zarr node.
+  As Zarr uses JSON, the `zarr.json` document MUST be parsed and interpreted as JSON.
   If the Zarr node is a group, its `zarr.json` becomes the current metadata document.
 - A `json` step reads the file at the current location as a [standalone JSON](#standalone-json) metadata document, which becomes the current metadata document.
   Its directory becomes the current location.
@@ -2125,6 +2129,15 @@ Several existing formats use different keys for declaring an object and for refe
 - **[FHIR](https://hl7.org/fhir/references.html)** declares resources with an `id` and refers to them with a `Reference` data type whose `reference` field names the type and ID of the target (e.g. `"reference": "Patient/123"`).
 - **[STAC](https://github.com/radiantearth/stac-spec)** declares catalogs, collections and items with an `id` and links between them with link objects that carry an `href` and a `rel` describing the relationship.
 
+### Locators and URL pipelines
+
+The [`Locator` interface](#locator-interface) implements the [proposal by Chris Barnes](https://forum.image.sc/t/2026-ome-zarr-hackathon-zurich-links-references-between-ome-zarr-nodes-and-metadata/123084) ([`clbarnes`](https://github.com/clbarnes)) for links and references between OME-Zarr nodes and metadata, made at the 2026 OME-Zarr hackathon in Zurich:
+a location is an ordered list of typed steps, each resolved relative to the result of the previous one, and new step types can be added by extensions.
+
+The [URL pipeline specification](https://github.com/jbms/url-pipeline) by Jeremy Maitin-Shephard follows the same idea and chains URL adapters (e.g. `https://…|zip:…|zarr3:…`) in a single string.
+This RFC does not use URL pipelines directly. Locators are not limited to strings, and JSON is better at expressing structured data,
+e.g. steps with several fields or fields defined by extensions, which can be validated with JSON Schema.
+
 ### BIDS
 https://direct.mit.edu/imag/article/doi/10.1162/imag_a_00103/119672/The-Past-Present-and-Future-of-the-Brain-Imaging
 
@@ -2308,10 +2321,6 @@ Within the collections proposal, there are also opportunities for standardizing 
 
 - Rendering state
 - Expressing relationships between nodes in a collection
-
-Future work:
-
-- Implementing the [URL pipeline specification](https://github.com/jbms/url-pipeline) proposed by Jeremy Maitin-Shephard
 
 ### Extensibility
 
