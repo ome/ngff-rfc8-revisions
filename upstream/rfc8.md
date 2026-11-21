@@ -473,13 +473,13 @@ This RFC defines one type of trait: [`scene`](#scene-trait).
 
 Trait types are also an extension point, so any extension can define its own traits following the rules set forth in the [“Extensions” section](#extensions).
 
-(rfcs:rfc8:metadata-document)=
-#### Metadata document
+(rfcs:rfc8:ome-zarr-envelope)=
+#### OME-Zarr envelope
 
-A metadata document is the object stored under the `ome` key (see [Metadata storage](#metadata-storage)).
-It is an envelope that holds the document-level fields and a single `Node` in its `content` field.
+The OME-Zarr envelope is the object stored under the `ome` key of a metadata document (see [Metadata storage](#metadata-storage)).
+It holds the document-level fields and a single `Node` in its `content` field.
 
-(rfcs:rfc8:metadata-document-schema)=
+(rfcs:rfc8:ome-zarr-envelope-schema)=
 ##### Schema
 
 | Field | Type | Required? | Notes |
@@ -497,7 +497,7 @@ so a node can be moved between documents, e.g. by inlining a path-referenced nod
 
 ##### OME-Zarr group
 
-A metadata document may be stored in the `ome` key of the `attributes` container in a `zarr.json` file of a Zarr group.
+An OME-Zarr envelope may be stored in the `ome` key of the `attributes` container in a `zarr.json` file of a Zarr group.
 This is particularly useful for defining the nodes that are stored within a Zarr group. However, there is no limitation to only reference nodes within the Zarr group.
 
 ```jsonc
@@ -524,7 +524,7 @@ This is particularly useful for defining the nodes that are stored within a Zarr
 ##### Standalone JSON
 
 Metadata documents may also be stored in standalone JSON files that are stored in arbitrary locations and have a file name ending in `.json`.
-Here, the metadata document is stored in the `ome` key of the root object.
+Here, the OME-Zarr envelope is stored in the `ome` key of the root object.
 Standalone files are useful for persisting groupings of images that may or may not be stored in the same folder hierarchy.
 
 ```jsonc
@@ -674,7 +674,7 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
 An `Array` object represents one resolution level of an OME-Zarr multiscale image.
 This new interface replaces the `dataset` metadata defined in the previous versions of the OME-Zarr specification.
 
-`Array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the `content` of a [metadata document](#metadata-document).
+`Array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the `content` of an [OME-Zarr envelope](#ome-zarr-envelope).
 Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscale-node), which is a leaf node.
 
 (rfcs:rfc8:array-node-schema)=
@@ -1054,7 +1054,7 @@ For example, the [`Path` interface](#path-interface) proposed by this very RFC h
 
 ### Extension manifest
 
-Any JSON file that makes use of extension-defined custom types MUST declare an extension manifest, which MUST list every extension used within the file. The manifest is stored under the `extensionManifest` key of the `ome` object, next to `version` and `content` (see [Metadata document](#metadata-document)).
+Any JSON file that makes use of extension-defined custom types MUST declare an extension manifest, which MUST list every extension used within the file. The manifest is stored under the `extensionManifest` key in the [OME-Zarr envelope](#ome-zarr-envelope).
 
 The extension manifest has several purposes, all stemming from the intention of making extensions “manageable”. Notably, it is intended to:
 
