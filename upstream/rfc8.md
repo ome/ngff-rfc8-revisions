@@ -308,11 +308,11 @@ See the [Security](#security) section for guidance on access restrictions.
 (rfcs:rfc8:path-interface-resolution)=
 ##### Path resolution
 
-Resolving a node's `path` means loading the document it locates, and, if the root node of that document has child nodes with a `path`, resolving those in turn.
-Resolving node paths MUST NOT form a cycle: a node's `path` MUST NOT resolve to a document that contains that node, directly or through a chain of other node paths.
+Resolving a [node reference](#inline-nodes-and-node-references) means loading the document its `path` locates, and, if the root node of that document contains node references, resolving those in turn.
+Resolving node references MUST NOT form a cycle: the `path` of a node reference MUST NOT resolve to a document that contains that node reference, directly or through a chain of other node references.
 Implementations MUST detect cycles and MUST stop resolving and report an error when they encounter one.
 
-This rule applies to the `path` fields of nodes.
+This rule applies to the `path` fields of node references.
 The `path` field of a [`Reference`](#reference-interface) only locates the document that contains the referenced object and MAY point back to an enclosing document, e.g. from a resolution level to the coordinate systems of its multiscale.
 
 (rfcs:rfc8:ids)=
@@ -344,6 +344,8 @@ Every declaration MUST have the following fields:
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
 Everywhere else, the object is referred to with a [`Reference`](#reference-interface).
+A node that is stored in another metadata document is included in a collection with a [node reference](#inline-nodes-and-node-references) instead.
+A node reference is itself a declaration of an entry in the collection, not a `Reference`.
 Declarations use the `id` key and references use the `ref` key, so that a declaration can always be distinguished from a reference.
 
 (rfcs:rfc8:reference-interface)=
@@ -431,6 +433,8 @@ several different types of OME-Zarr metadata object and the root only stores
 information used for identifying and referencing the object.
 
 Nodes conform to the [`Declaration` interface](#declaration-interface) and therefore require the `type` and `id` fields.
+Every node is either an inline node or a node reference, see [Inline nodes and node references](#inline-nodes-and-node-references).
+The fields below are common to both forms, except `version` and `extensionManifest`, which only appear on root nodes and therefore only on inline nodes.
 
 (rfcs:rfc8:abstract-structure-node-schema)=
 ##### Schema
@@ -452,6 +456,7 @@ Objects that implement `Node` have the following fields:
 The `type` field of a `Node` defines its structure and semantics, including any additional fields it might have.
 Additional functionality of a node can be expressed through its [traits](#traits).
 This RFC defines two node types: `collection` and `multiscale`.
+Each node type has an inline form and a reference form, see [Inline nodes and node references](#inline-nodes-and-node-references).
 A third kind of object, the `array`, is not a node type: `array` objects are stored in the `data` field of a `multiscale` node.
 
 The `type` field of a `Node` is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
@@ -469,6 +474,111 @@ SHOULD NOT have a `version` field and MUST NOT have a different `version` value 
 The root node of a metadata document MUST have an `extensionManifest` field if the document uses extension-defined custom types.
 Non-root `Node` objects MUST NOT have an `extensionManifest` field.
 See [Extension manifest](#extension-manifest) for its contents.
+
+(rfcs:rfc8:node-references)=
+#### Inline nodes and node references
+
+Every node type has two forms:
+
+- An **inline node** stores the node itself.
+  It has the fields of the [`Node` interface](#node-interface) and the body fields that its node type defines,
+  e.g. `nodes` for a `collection` node, or `data`, `coordinateSystems` and `coordinateTransformations` for a `multiscale` node.
+- A **node reference** includes a node that is stored as the root node of another metadata document.
+  It has a `path` field that locates that document and none of the body fields of its node type.
+
+Readers tell the two forms apart by their structure:
+the root node of a metadata document MUST be an inline node,
+and an object in a `nodes` array is a node reference if it has a `path` field and an inline node otherwise.
+Which forms may appear in the `nodes` field of a collection is defined in the [`Collection` node](#collection-node) section.
+
+Node types defined by extensions follow the same rules:
+the extension defines the body fields of the inline form, and the reference form has the fields defined below.
+
+(rfcs:rfc8:node-references-schema)=
+##### Schema
+
+A node reference has the following fields:
+
+| Field | Type | Required? | Notes |
+| - | - | - | - |
+| `"type"` | string | yes | Value MUST be the node type of the referenced node. |
+| `"id"` | string | yes | Value MUST be the identifier of the node reference. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). The value MAY differ from the `id` of the referenced node. |
+| `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
+| `"path"` | object | yes | Value MUST be a `Path` object that locates the metadata document of the referenced node. |
+| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
+
+A node reference MUST NOT contain any other fields.
+In particular, it MUST NOT contain the body fields of its node type, `version` or `extensionManifest`.
+
+(rfcs:rfc8:node-references-resolution)=
+##### Resolution
+
+Resolving a node reference means loading the document that its `path` locates (see [Path resolution](#path-resolution)).
+The root node of that document is the referenced node.
+It MUST have the same `type` as the node reference, and implementations MUST report an error if it does not.
+
+(rfcs:rfc8:node-references-context)=
+##### Context of a node reference
+
+The `name` and `traits` of a node reference apply in the context of the referencing collection.
+This allows a collection to add information to a node that is only valid within the collection, e.g. rendering settings or relationships to other nodes of the collection, without modifying the referenced node.
+
+- When the referenced node is read through the node reference, i.e. from the referencing collection, its traits are the traits of the referenced node merged with the traits of the node reference.
+  If both carry traits of the same `type`, the traits of the node reference replace the traits of the referenced node with that `type`.
+  Traits are replaced as a whole; their fields are not merged.
+- The same rule applies to `name`: if the node reference has a `name`, it replaces the `name` of the referenced node in the context of the collection.
+  Otherwise, the `name` of the referenced node applies.
+- When the referenced node is read on its own, i.e. with its own metadata document as the entry point, only its own `name` and `traits` apply.
+- Within the referencing document, the node is identified by the `id` of the node reference.
+  Within its own document, it is identified by its own `id`.
+
+For example, a multiscale stored in `./nuclei` carries a trait of a viewer extension:
+
+```jsonc
+{
+  "ome": {
+    "version": "0.x",
+    "type": "multiscale",
+    "id": "000001",
+    "name": "nuclei",
+    "traits": [
+      { "type": "https://viewer-a.example.com/settings/Layer", "visible": true, "opacity": 1.0 }
+    ],
+    "data": [...],
+    "coordinateSystems": [...],
+    "coordinateTransformations": [...]
+  }
+}
+```
+
+A collection references it with its own name and traits:
+
+```jsonc
+"nodes": [
+  {
+    "type": "multiscale",
+    "id": "000002",
+    "name": "nuclei (overlay)",
+    "path": { "type": "zarr", "format": "relative", "href": "./nuclei" },
+    "traits": [
+      { "type": "https://viewer-a.example.com/settings/Layer", "visible": true, "opacity": 0.5 },
+      { "type": "https://viewer-b.example.org/rendering/Display", "colormap": "blue" }
+    ]
+  }
+]
+```
+
+Read from the collection, the node is named `nuclei (overlay)` and has both traits of the node reference; the `Layer` trait of the node reference replaces the one of the multiscale.
+Read on its own, the multiscale is named `nuclei` and has only its own `Layer` trait with an opacity of `1.0`.
+
+(rfcs:rfc8:node-references-reference-interface)=
+##### Relation to the `Reference` interface
+
+A node reference is not a [`Reference`](#reference-interface), although both point to something declared in another document:
+
+- A `Reference` refers to an object by its `id` in the `ref` field. It only identifies the object and MUST NOT carry traits.
+- A node reference conforms to the [`Declaration` interface](#declaration-interface): it declares an entry of a collection with its own `id`, and it may carry a `name` and `traits` for that entry.
+  It locates the referenced node with `path` alone and has no `ref` field, because the referenced node is always the root node of the located document.
 
 (rfcs:rfc8:abstract-structure-traits)=
 #### Traits
@@ -488,6 +598,9 @@ This RFC defines one type of trait: [`scene`](#scene-trait).
 Trait types are also an extension point, so any extension can define its own traits following the rules set forth in the [“Extensions” section](#extensions).
 
 #### Metadata storage
+
+Each metadata document stores one inline node as its root node, under the `ome` key.
+Nodes stored in other metadata documents are included with [node references](#inline-nodes-and-node-references).
 
 ##### OME-Zarr group
 
@@ -614,7 +727,7 @@ specialised for different use cases. Collections can be used to group together
 images, including segmentations, prediction maps and other derived images as
 well as other data types ("nodes"). Collections can be nested. Collections can
 have metadata attached, and nodes within a collection can also have node-level
-metadata. Nodes within collections are referenced by paths instead of relying
+metadata. Nodes within collections are included with [node references](#inline-nodes-and-node-references) instead of relying
 on a specific file system hierarchy.
 
 (rfcs:rfc8:collection-node-schema)=
@@ -627,13 +740,20 @@ on a specific file system hierarchy.
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
 | `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
-| `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
-| `"path"` | object | no | Value MUST be a `Path` object. |
+| `"nodes"` | array | yes | Value MUST be an array of inline `collection` nodes and node references. See below. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
 
-Either `"nodes"` or `"path"` MUST be present, but not both.
+This table defines the inline form of a `collection` node, which MUST NOT have a `path` field.
+A `collection` node reference has the fields defined in [Inline nodes and node references](#inline-nodes-and-node-references), and the document it resolves to MUST have a root node of type `collection`.
 
-If `"path"` is present, the document it resolves to MUST have a root node of type `collection`.
+Each item of the `nodes` field MUST be one of the following:
+
+- an inline `collection` node,
+- a `collection` node reference, or
+- a node reference of any other node type, e.g. a `multiscale` node reference.
+
+Inline nodes of other node types, such as `multiscale`, MUST NOT appear in a `nodes` field.
+They are only stored as the root node of their own metadata document.
 
 ```jsonc
 {
@@ -726,6 +846,8 @@ the `input` is the `Array` object itself, and the `output` is the highest-resolu
 A `Multiscale` node represents an OME-Zarr multiscale image.
 This new interface replaces the multiscale metadata defined in the previous versions of the OME-Zarr specification.
 A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels are [`Array` objects](#array-object) stored in its `data` field.
+An inline `multiscale` node is always the root node of its own metadata document.
+Collections include it with a `multiscale` node reference (see [Inline nodes and node references](#inline-nodes-and-node-references)).
 
 (rfcs:rfc8:multiscale-node-schema)=
 ##### Schema
@@ -737,15 +859,13 @@ A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
 | `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
-| `"data"` | array | no | Value MUST be an array of `Array` objects. [See array object](#array-object). |
-| `"path"` | object | no | Value MUST be a `Path` object. |
+| `"data"` | array | yes | Value MUST be an array of `Array` objects. [See array object](#array-object). |
 | `"coordinateSystems"` | array | yes | Value MUST be an array of `coordinateSystem` objects. |
 | `"coordinateTransformations"` | array | yes | Value MUST be an array of `coordinateTransformation` objects, the output of which MUST be present in the `coordinateSystems` array. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
 
-Either `"data"` or `"path"` MUST be present, but not both.
-
-If `"path"` is present, the document it resolves to MUST have a root node of type `multiscale`.
+This table defines the inline form of a `multiscale` node, which MUST NOT have a `path` field.
+A `multiscale` node reference has the fields defined in [Inline nodes and node references](#inline-nodes-and-node-references), and the document it resolves to MUST have a root node of type `multiscale`.
 
 ```jsonc
 {
@@ -1370,8 +1490,8 @@ The following table recapitulates the currently defined built-in types along wit
 
 | Type name | Type of… | Tier | Origin |
 | - | - | - | - |
-| `collection` | Node | Core type | This RFC |
-| `multiscale` | Node | Core type | This RFC |
+| `collection` | Node (inline node or node reference) | Core type | This RFC |
+| `multiscale` | Node (inline node or node reference) | Core type | This RFC |
 | `zarr` | Path | Core type | This RFC |
 | `json` | Path | Core type | This RFC |
 | `scene` | Trait | Core type | This RFC |
@@ -1672,7 +1792,10 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
 ```
 
 
-### A collection with an inlined multiscale
+### A collection with an inline nested collection
+
+Collections can be nested inline.
+Multiscales are always included with node references, also within an inline nested collection.
 
 ```jsonc
 {
@@ -1686,31 +1809,36 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
             "name": "raw",
             "id": "000002",
             "type": "multiscale",
-            "data": [
+            "path": {
+              "type": "zarr",
+              "format": "relative",
+              "href": "./raw"
+            }
+          },
+          {
+            "name": "segmentations",
+            "id": "000003",
+            "type": "collection",
+            "nodes": [
               {
-                "name": "raw_0",
-                "type": "array",
+                "name": "nuclei",
+                "id": "000004",
+                "type": "multiscale",
                 "path": {
                   "type": "zarr",
                   "format": "relative",
-                  "href": "./raw/0"
+                  "href": "./segmentations/nuclei"
                 }
-              }
-            ],
-            "coordinateTransformations": [
+              },
               {
-                "type": "scale",
-                "scale": [1, 1, 1],
-                "input": "000002",
-                "output": "000003"
-              }
-            ],
-            "coordinateSystems": [
-              {
-                "type": "coordinate_system",
-                "id": "000003",
-                "name": "physical",
-                "axes": [...]
+                "name": "cells",
+                "id": "000005",
+                "type": "multiscale",
+                "path": {
+                  "type": "zarr",
+                  "format": "relative",
+                  "href": "./segmentations/cells"
+                }
               }
             ]
           }
@@ -1802,8 +1930,9 @@ Defining a custom format instead of reusing existing validated formats introduce
 ### Redundant metadata
 
 This RFC introduces the possibility for redundant metadata.
-For example, a collection can contain inlined metadata for multiscale images and the multiscale images can also be specified in standalone metadata.
+For example, a node reference in a collection can carry a `name` or traits that are also present on the referenced node.
 This redundant metadata can go out of sync.
+The rules in [Context of a node reference](#rfcs:rfc8:node-references-context) define which values apply.
 It is the responsibility of implementations to ensure consistency where required.
 
 For reading, implementations SHOULD parse the metadata as available to the implementation from the user-supplied entry point in the OME-Zarr hierarchy.
