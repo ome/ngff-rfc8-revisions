@@ -169,7 +169,7 @@ consistent framework.
 ## Proposal
 
 The following sections describe the proposed metadata framework in detail. They
-define the building blocks, the abstract structure, and the core classes in
+define the building blocks, the abstract structure, and the core types in
 order. Each section includes schemas and small illustrative examples intended
 to explain the structure and relationships between the different components.
 
@@ -201,6 +201,28 @@ illustrating individual aspects of the proposal, e.g.:
 
 More complete examples showing how these components can be combined to support
 the use cases described in the Background are provided later in the document.
+
+(rfcs:rfc8:terminology)=
+### Terminology
+
+This RFC uses the following terms:
+
+- **Interface**: a role an object plays in the document, plus the fields that every object in that role has.
+  A field is typed by an interface and accepts any object that conforms to it.
+  Examples are `Node`, `Trait`, `Axis`, `Coordinate Transformation`, `Path` and `Reference`.
+- **Type**: one concrete variant of an interface, named by the value of its `type` field
+  (elsewhere also called a type discriminator or internal type tag).
+  The type decides which further fields exist and what they mean.
+  For example, `collection` and `multiscale` are types of `Node`, `space` is a type of `Axis` and `affine` is a type of `Coordinate Transformation`.
+- **Extension point**: an interface whose `type` field is open, so that extensions can add custom types named by a URI (see [Extension points](#extension-points)).
+  Readers that do not know a custom type still know the fields that the interface defines.
+
+Interfaces can build on each other.
+For example, nodes and coordinate systems both conform to the [`Declaration` interface](#declaration-interface) (`type` and `id`),
+and the [`Downsampling Transformation` interface](#downsampling-transformation-interface) is a constrained [`Coordinate Transformation` interface](#coordinate-transformation-interface).
+
+Each interface section states whether its `type` field is an extension point.
+Sections that define a type are titled by the value of its `type` field, e.g. "`multiscale` (type of Node)".
 
 ### Features deferred to subsequent sub-RFC
 
@@ -335,16 +357,22 @@ For readability, the examples in this document use short IDs such as `"000001"`.
 Every object that can be referenced is declared exactly once.
 A declaration is the place where an object's `id` and its other fields are defined, e.g. an entry in a `nodes` or `coordinateSystems` array.
 
+(rfcs:rfc8:declaration-interface-schema)=
+##### Schema
+
 Every declaration MUST have the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
-| `"type"` | string | yes | Value MUST be the kind of the declared object, e.g. `"collection"` or `"multiscale"` for nodes and `"coordinate_system"` for coordinate systems. |
+| `"type"` | string | yes | Value MUST be the type of the declared object, e.g. `"collection"` or `"multiscale"` for nodes and `"coordinate_system"` for coordinate systems. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
 Everywhere else, the object is referred to with a [`Reference`](#reference-interface).
 Declarations use the `id` key and references use the `ref` key, so that a declaration can always be distinguished from a reference.
+
+The `type` field of the `Declaration` interface is not itself an extension point.
+Whether it is open depends on the interface that builds on `Declaration`: the `type` field of a [`Node`](#node-interface) is an extension point, while the `type` field of a [`coordinate_system`](#coordinate_system-type-of-declaration) is not.
 
 (rfcs:rfc8:reference-interface)=
 #### `Reference` interface
@@ -401,6 +429,9 @@ An object reference MUST have the following fields:
 An object reference MUST NOT contain any other fields.
 In particular, a reference MUST NOT carry traits or child nodes; these belong to the declaration.
 
+The `type` field of a reference names the type of the referenced declaration and is not an extension point of its own.
+A reference may name a custom type wherever the referenced declaration may have one.
+
 (rfcs:rfc8:reference-interface-resolution)=
 ##### Resolution
 
@@ -444,15 +475,15 @@ Objects that implement `Node` have the following fields:
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
 | `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
-| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
+| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#trait-interface). |
 
 (rfcs:rfc8:abstract-structure-node-field-type)=
 ##### Field: `type`
 
 The `type` field of a `Node` defines its structure and semantics, including any additional fields it might have.
-Additional functionality of a node can be expressed through its [traits](#traits).
-This RFC defines two node types: `collection` and `multiscale`.
-A third kind of object, the `array`, is not a node type: `array` objects are stored in the `data` field of a `multiscale` node.
+Additional functionality of a node can be expressed through its [traits](#trait-interface).
+This RFC defines two node types: [`collection`](#collection-type-of-node) and [`multiscale`](#multiscale-type-of-node).
+The [`array`](#array-resolution-level) type is not a node type: `array` objects are stored in the `data` field of a `multiscale` node.
 
 The `type` field of a `Node` is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
 
@@ -471,7 +502,7 @@ Non-root `Node` objects MUST NOT have an `extensionManifest` field.
 See [Extension manifest](#extension-manifest) for its contents.
 
 (rfcs:rfc8:abstract-structure-traits)=
-#### Traits
+#### `Trait` interface
 
 Each `Node` has a `traits` field that accepts a list of `Trait` objects.
 The node type and the traits of a node have separate roles.
@@ -479,13 +510,22 @@ The node type defines the structure of a node: which fields it has and how reade
 Traits define the function of a node: what the data represents and how it relates to other nodes, e.g. that a collection is a plate, a well or a scene, or that an image contains labels.
 A node may carry any number of traits, so independent aspects can be combined on the same node without defining a new node type for each combination.
 
-Each trait has minimally a `type` field, which dictates how the trait should be interpreted and defines the other fields it may contain.
+(rfcs:rfc8:abstract-structure-traits-schema)=
+##### Schema
+
+Objects that implement `Trait` have the following fields:
+
+| Field | Type | Required? | Notes |
+| - | - | - | - |
+| `"type"` | string | yes | Value MUST be a string identifying the trait type. |
+
+The `type` field of a trait dictates how the trait should be interpreted and defines the other fields it may contain.
 Trait fields are stored inside the trait object, not on the node.
 Readers that do not understand a trait MAY ignore it and still traverse the node based on its node type.
 
-This RFC defines one type of trait: [`scene`](#scene-trait).
+This RFC defines one trait type: [`scene`](#scene-type-of-trait).
 
-Trait types are also an extension point, so any extension can define its own traits following the rules set forth in the [“Extensions” section](#extensions).
+The `type` field of a `Trait` is an extension point, so any extension can define its own traits following the rules set forth in the [“Extensions” section](#extensions).
 
 #### Metadata storage
 
@@ -599,7 +639,7 @@ Consolidated metadata can only cover Zarr nodes within the hierarchy of the root
 At the time of writing, the Zarr-level specification of consolidated metadata is incomplete, which limits what this RFC can say about it.
 A future revision may give more guidance once the Zarr specification is finalized.
 
-### New and modified core classes
+### Core types
 
 Building on the core building blocks and the abstract structure, the following
 sections define concrete node types for collections and
@@ -607,9 +647,9 @@ multiscale images, and integrate coordinate systems and transformations from
 RFC-5.
 
 (rfcs:rfc8:collection-node)=
-#### `Collection` node
+#### `collection` (type of Node)
 
-[Collections](#collection-node) are arbitrary groups of `Node`s which can be
+[Collections](#collection-type-of-node) are arbitrary groups of `Node`s which can be
 specialised for different use cases. Collections can be used to group together
 images, including segmentations, prediction maps and other derived images as
 well as other data types ("nodes"). Collections can be nested. Collections can
@@ -629,7 +669,7 @@ on a specific file system hierarchy.
 | `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
 | `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
+| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#trait-interface). |
 
 Either `"nodes"` or `"path"` MUST be present, but not both.
 
@@ -657,13 +697,14 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
 ```
 
 (rfcs:rfc8:array-node)=
-#### `Array` object
+#### `array` (resolution level)
 
-An `Array` object represents one resolution level of an OME-Zarr multiscale image.
-This new interface replaces the `dataset` metadata defined in the previous versions of the OME-Zarr specification.
+An `array` object represents one resolution level of an OME-Zarr multiscale image.
+This type replaces the `dataset` metadata defined in the previous versions of the OME-Zarr specification.
 
-`Array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the root object of the `ome` key.
-Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscale-node), which is a leaf node.
+`array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the root object of the `ome` key.
+Instead, they are stored in the `data` field of a [`multiscale` node](#multiscale-type-of-node), which is a leaf node.
+`array` is the only type allowed in the `data` field, and that `type` field is not an extension point.
 
 (rfcs:rfc8:array-node-schema)=
 ##### Schema
@@ -678,12 +719,12 @@ Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscal
 (rfcs:rfc8:array-node-field-downsamplingTransformations)=
 ##### Field: `downsamplingTransformations`
 
-`Array` objects other than the highest-resolution object MUST have a `downsamplingTransformations` field, which
+`array` objects other than the highest-resolution object MUST have a `downsamplingTransformations` field, which
 - is an array of objects that conform to the [`Downsampling Transformation` interface](#downsampling-transformation-interface).
 - contains and only contains either a single `scale` transformation, or a `scale` transformation followed by a `translation` transformation.
 
 The `input` and `output` of these transformations are implicit:
-the `input` is the `Array` object itself, and the `output` is the highest-resolution `Array` object in the `data` field of the enclosing `multiscale` node.
+the `input` is the `array` object itself, and the `output` is the highest-resolution `array` object in the `data` field of the enclosing `multiscale` node.
 
 ```jsonc
 {
@@ -721,11 +762,11 @@ the `input` is the `Array` object itself, and the `output` is the highest-resolu
 ```
 
 (rfcs:rfc8:multiscale-node)=
-#### `Multiscale` node
+#### `multiscale` (type of Node)
 
-A `Multiscale` node represents an OME-Zarr multiscale image.
-This new interface replaces the multiscale metadata defined in the previous versions of the OME-Zarr specification.
-A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels are [`Array` objects](#array-object) stored in its `data` field.
+A `multiscale` node represents an OME-Zarr multiscale image.
+This type replaces the multiscale metadata defined in the previous versions of the OME-Zarr specification.
+A `multiscale` node is a leaf node: it has no child nodes. Its resolution levels are [`array` objects](#array-resolution-level) stored in its `data` field.
 
 (rfcs:rfc8:multiscale-node-schema)=
 ##### Schema
@@ -737,11 +778,11 @@ A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
 | `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
-| `"data"` | array | no | Value MUST be an array of `Array` objects. [See array object](#array-object). |
+| `"data"` | array | no | Value MUST be an array of [`array`](#array-resolution-level) objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"coordinateSystems"` | array | yes | Value MUST be an array of `coordinateSystem` objects. |
-| `"coordinateTransformations"` | array | yes | Value MUST be an array of `coordinateTransformation` objects, the output of which MUST be present in the `coordinateSystems` array. |
-| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
+| `"coordinateSystems"` | array | yes | Value MUST be an array of [`coordinate_system`](#coordinate_system-type-of-declaration) objects. |
+| `"coordinateTransformations"` | array | yes | Value MUST be an array of [`Coordinate Transformation`](#coordinate-transformation-interface) objects, the output of which MUST be present in the `coordinateSystems` array. |
+| `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#trait-interface).|
 
 Either `"data"` or `"path"` MUST be present, but not both.
 
@@ -802,7 +843,7 @@ Coordinate systems and transformations can be stored in two distinct locations:
 In a change from RFC-5, coordinate systems are referenced by ID and not by name.
 Each `input` and `output` is a [`Reference`](#reference-interface).
 A coordinate system that is declared in the same document is referenced by its ID as a string.
-A coordinate system that is declared in another document is referenced with an object reference that names the kind of the target (`coordinate_system`), its ID in the `ref` field, and the `path` of the document.
+A coordinate system that is declared in another document is referenced with an object reference that names the type of the target (`coordinate_system`), its ID in the `ref` field, and the `path` of the document.
 
 ```jsonc
 {
@@ -880,24 +921,38 @@ A coordinate system that is declared in another document is referenced with an o
 }
 ```
 
-The `type` field of a coordinate transformation defines its mathematical operation. RFC-5 defines several core transformation types including `identity`, `scale`, `translation`, and others.
+##### `coordinate_system` (type of Declaration)
 
-The `type` field of a `CoordinateTransformation` is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
-
-##### `Coordinate System` interface
-
-The `Coordinate System` objects have the following fields:
+A coordinate system is a single type that conforms to the [`Declaration` interface](#declaration-interface).
+The `coordinate_system` objects have the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"coordinate_system"`. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | More descriptive name for the coordinate system, if needed. |
-| `"axes"` | array of Axis objects | yes | Value MUST be an array of axes, as defined in RFC-5. |
+| `"axes"` | array of Axis objects | yes | Value MUST be an array of [`Axis`](#axis-interface) objects, as defined in RFC-5. |
+
+The `type` field of a `coordinate_system` MUST be `"coordinate_system"` and is not an extension point.
+
+##### `Axis` interface
+
+An `Axis` object describes one dimension of a coordinate system, as defined in RFC-5.
+`Axis` objects have the following fields:
+
+| Field | Type | Required? | Notes |
+| - | - | - | - |
+| `"name"` | string | yes | Value MUST be the name of the axis, as defined in RFC-5. |
+| `"type"` | string | as defined in RFC-5 | Value MUST be a valid axis type, as defined in RFC-5. |
+
+Further fields, e.g. `unit`, are defined by RFC-5 and depend on the axis type.
+RFC-5 defines the axis types `index`, `space`, `time`, `channel` and `coordinate`.
 
 The `type` field of an `Axis` object is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
 
 ##### `Coordinate Transformation` interface
+
+The `type` field of a coordinate transformation defines its mathematical operation. RFC-5 defines several core transformation types including `identity`, `scale`, `translation`, and others.
 
 The `Coordinate Transformation` objects have the following fields:
 
@@ -909,7 +964,9 @@ The `Coordinate Transformation` objects have the following fields:
 
 Additional fields MAY be added as required by the transform type.
 
-Depending on the context, the `input` and `output` references point to different kinds of objects:
+The `type` field of a `Coordinate Transformation` is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
+
+Depending on the context, the `input` and `output` references point to objects of different types:
 
 | Context | `input` | `output` |
 | - | - | - |
@@ -917,9 +974,9 @@ Depending on the context, the `input` and `output` references point to different
 | **Multiscale > coordinateTransformations** | `"000001"` (the enclosing multiscale) | `"000002"` |
 
 **Multiscale > coordinateTransformations**: In the context of multiscales transformations, the following requirements apply:
-- The `input` field MUST be a reference of type `multiscale` to the enclosing [`Multiscale` node](#multiscale-node).
-  It stands for the highest-resolution `Array` object in the `data` field of the multiscale.
-  Lower-resolution `Array` objects are related to the highest-resolution one by their [downsampling transformations](#downsampling-transformation-interface).
+- The `input` field MUST be a reference of type `multiscale` to the enclosing [`multiscale` node](#multiscale-type-of-node).
+  It stands for the highest-resolution `array` object in the `data` field of the multiscale.
+  Lower-resolution `array` objects are related to the highest-resolution one by their [downsampling transformations](#downsampling-transformation-interface).
 - The `output` field MUST be a reference of type `coordinate_system` to a coordinate system in the `coordinateSystems` field of the multiscale.
 - The `output` fields of all transformations MUST reference the same coordinate system.
 - Both references SHOULD be strings.
@@ -932,7 +989,7 @@ In the context of node-level transformations between different multiscales, the 
 
 ##### `Downsampling Transformation` interface
 
-A downsampling transformation relates a lower-resolution `Array` object to the highest-resolution `Array` object of the same multiscale.
+A downsampling transformation relates a lower-resolution `array` object to the highest-resolution `array` object of the same multiscale.
 It is a constrained version of the [`Coordinate Transformation` interface](#coordinate-transformation-interface):
 its `input` and `output` are implicit, and only the `scale` and `translation` types are allowed.
 
@@ -946,33 +1003,36 @@ The `Downsampling Transformation` objects have the following fields:
 
 A downsampling transformation MUST NOT contain any other fields; in particular, it MUST NOT contain `input` or `output` fields.
 
+The `type` field of a `Downsampling Transformation` is not an extension point.
+
 A `downsamplingTransformations` array MUST contain exactly one `"scale"` transformation, which MAY be followed by exactly one `"translation"` transformation.
 The translation accounts for the offset of the origin pixel due to the downsampling grid.
 
-The downsampling transformations of an `Array` object can be cast into a coordinate transformation by adding the implicit fields:
+The downsampling transformations of an `array` object can be cast into a coordinate transformation by adding the implicit fields:
 
-- The `input` is the array coordinate system of the `Array` object that contains the transformations.
-- The `output` is the array coordinate system of the highest-resolution `Array` object in the `data` field of the enclosing `Multiscale` node.
+- The `input` is the array coordinate system of the `array` object that contains the transformations.
+- The `output` is the array coordinate system of the highest-resolution `array` object in the `data` field of the enclosing `multiscale` node.
 - A single `scale` is cast into a `scale` transformation.
   A `scale` followed by a `translation` is cast into a `sequence` transformation that applies them in that order.
 
 The result conforms to the [`Coordinate Transformation` interface](#coordinate-transformation-interface).
 
-##### `Scene` trait
+##### `scene` (type of Trait)
 
 The `scene` trait MUST be an object with the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
-| `"coordinateSystems"` | array | no | Values MUST be valid instances of [`Coordinate System`](#coordinate-system-interface) objects. |
-| `"coordinateTransformations"` | array | yes | Values MUST be valid instances of [`Coordinate transformation`](#coordinate-transformation-interface) objects |
+| `"type"` | string | yes | Value MUST be `"scene"`. |
+| `"coordinateSystems"` | array | no | Values MUST be valid instances of [`coordinate_system`](#coordinate_system-type-of-declaration) objects. |
+| `"coordinateTransformations"` | array | yes | Values MUST be valid instances of [`Coordinate Transformation`](#coordinate-transformation-interface) objects |
 
 A `scene` metadata object can be defined in the `traits` of a collection to enrich the collection with spatial information of the nodes within the collection.
 The `scene` trait allows to clearly distinguish between the spatial information pertaining to an individual multiscale image (which is stored in the `coordinateSystems` and `coordinateTransformations` fields of the multiscale node)
 and the spatial information pertaining to the collection of images (which is stored in the `scene` trait of the collection).
 
 <!--
-These "new and modified core classes" could become concrete extensions
+These "core types" could become concrete extensions
 under Damien's proposal
 -->
 
@@ -1090,7 +1150,7 @@ When a reader encounters a custom type that (1) it does not explicitly support a
 - MAY skip the object and report it as unsupported;
 - MAY continue to interpret the rest of the dataset.
 
-When the custom type is a [trait](#traits), these rules apply to the object that is carrying the trait.
+When the custom type is a [trait](#trait-interface), these rules apply to the object that is carrying the trait.
 
 Readers MAY use the extension manifest to decide up front whether an OME-Zarr image is likely to be fully supported, without waiting to encounter an unknown custom type.
 
@@ -1098,7 +1158,7 @@ Writers SHOULD set `mustUnderstand: true` for a given extension only when ignori
 
 ### Examples
 
-#### Extending the `Path` object
+#### Extending the `Path` interface
 
 This example illustrates an extension with ID `https://ngff.example.org/omero/` that adds a custom type of `Path` that points to an image on an OMERO server rather than to a file.
 
@@ -1375,24 +1435,24 @@ The following table recapitulates the currently defined built-in types along wit
 | `zarr` | Path | Core type | This RFC |
 | `json` | Path | Core type | This RFC |
 | `scene` | Trait | Core type | This RFC |
-| `array` | Data object (multiscale `data` field) | Core type | This RFC |
+| `array` | — (only type of the multiscale `data` entries; not an extension point) | Core type | This RFC |
 | `index` | Axis | Core type | RFC-5 |
 | `space` | Axis | Core type | RFC-5 |
 | `time` | Axis | Core type | RFC-5 |
 | `channel` | Axis | Core type | RFC-5 |
 | `coordinate` | Axis | Core type | RFC-5 |
 | `anatomical` | Axis orientation | Recommended type | RFC-4 |
-| `identity` | Coordinate transformation | Core type | RFC-5 |
-| `scale` | Coordinate transformation | Core type | RFC-5 |
-| `translation` | Coordinate transformation | Core type | RFC-5 |
-| `mapAxis` | Coordinate transformation | Recommended type | RFC-5 |
-| `affine` | Coordinate transformation | Recommended type | RFC-5 |
-| `rotation` | Coordinate transformation | Recommended type | RFC-5 |
-| `sequence` | Coordinate transformation | Optional | RFC-5 |
-| `displacements` | Coordinate transformation | Optional | RFC-5 |
-| `coordinates` | Coordinate transformation | Optional | RFC-5 |
-| `bijection` | Coordinate transformation | Optional | RFC-5 |
-| `byDimension` | Coordinate transformation | Optional | RFC-5 |
+| `identity` | Coordinate Transformation | Core type | RFC-5 |
+| `scale` | Coordinate Transformation | Core type | RFC-5 |
+| `translation` | Coordinate Transformation | Core type | RFC-5 |
+| `mapAxis` | Coordinate Transformation | Recommended type | RFC-5 |
+| `affine` | Coordinate Transformation | Recommended type | RFC-5 |
+| `rotation` | Coordinate Transformation | Recommended type | RFC-5 |
+| `sequence` | Coordinate Transformation | Optional | RFC-5 |
+| `displacements` | Coordinate Transformation | Optional | RFC-5 |
+| `coordinates` | Coordinate Transformation | Optional | RFC-5 |
+| `bijection` | Coordinate Transformation | Optional | RFC-5 |
+| `byDimension` | Coordinate Transformation | Optional | RFC-5 |
 
 Any future RFC that defines its own types MUST explicitly state for each type whether it is intended that implementations MUST support it (categorizing it as a core type), SHOULD support it (categorizing it as a recommended type), or MAY support it (categorizing it as an optional type). A type defined without such an explicit statement is inferred to be an optional type.
 
@@ -1812,8 +1872,8 @@ For reading, implementations SHOULD parse the metadata as available to the imple
 ### New Multiscale/Array metadata
 
 In an effort to unify the existing and new collection types of OME-Zarr, the Multiscale metadata has been changed to use the same Node interface as collections.
-Still, it is a specialized node type because of its prevalence and its semantic requirements with regards to the `Array` objects in its `data` field.
-Unlike a `collection`, a `multiscale` node is a leaf node: its `data` field contains `Array` objects, which are not nodes themselves.
+Still, it is a specialized node type because of its prevalence and its semantic requirements with regards to the `array` objects in its `data` field.
+Unlike a `collection`, a `multiscale` node is a leaf node: its `data` field contains `array` objects, which are not nodes themselves.
 A node type for images that only contain a single resolution level is deferred to a sub-RFC.
 
 These changes are breaking changes to the core of the OME-Zarr specification.
@@ -1902,7 +1962,7 @@ This was abandoned in favour of (1) mandating that custom types be identified by
 
 An initial version of this RFC proposed that third parties could append custom metadata to any node by adding prefixed keys to an `attributes` dictionary carried by every node, where the prefix has been previously registered into a registry maintained by the community (as for custom types, see previous section).
 
-This was abandoned in favour of the [trait](#traits) concept.
+This was abandoned in favour of the [trait](#trait-interface) concept.
 
 ### Subtyped node types
 
@@ -1922,7 +1982,7 @@ With traits, the node type stays a known core type, so the data can still be tra
 Traits further allow partial support and modular validation: an implementation can support a subset of traits, and each trait is validated against its own schema.
 Finally, previous versions of the specification already compose metadata on one group (`multiscales`, `labels`, `omero`), and traits keep that model.
 
-The [trait](#traits) concept is inspired by traits in Rust and comparable to interfaces in Java and extensions in STAC.
+The [trait](#trait-interface) concept is inspired by traits in Rust and comparable to interfaces in Java and extensions in STAC.
 Node types describe structure (how a node is traversed) and traits describe meaning.
 Exclusivity between traits has to be stated explicitly in the trait specifications.
 Extensions may still define new node types for structures that the core node types do not cover.
@@ -2266,7 +2326,7 @@ Shortened version from https://gist.githubusercontent.com/will-moore/fe0e260544b
 
 ### Rust traits
 
-[Traits](#traits), as used in this RFC, were inspired by the [concept of the same name](https://doc.rust-lang.org/book/ch10-02-traits.html) in the Rust programming language.
+[Traits](#trait-interface), as used in this RFC, were inspired by the [concept of the same name](https://doc.rust-lang.org/book/ch10-02-traits.html) in the Rust programming language.
 
 ### Extensions
 
