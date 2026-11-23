@@ -222,7 +222,7 @@ For example, nodes and coordinate systems both conform to the [`Declaration` int
 and the [`Downsampling Transformation` interface](#downsampling-transformation-interface) is a constrained [`Coordinate Transformation` interface](#coordinate-transformation-interface).
 
 Each interface section states whether its `type` field is an extension point.
-Sections that define a type are titled by the value of its `type` field, e.g. "`multiscale` (type of Node)".
+Sections that define a type are titled by the value of its `type` field followed by the interface it belongs to, e.g. "`multiscale` Node type".
 
 ### Features deferred to subsequent sub-RFC
 
@@ -372,7 +372,7 @@ Everywhere else, the object is referred to with a [`Reference`](#reference-inter
 Declarations use the `id` key and references use the `ref` key, so that a declaration can always be distinguished from a reference.
 
 The `type` field of the `Declaration` interface is not itself an extension point.
-Whether it is open depends on the interface that builds on `Declaration`: the `type` field of a [`Node`](#node-interface) is an extension point, while the `type` field of a [`coordinate_system`](#coordinate_system-type-of-declaration) is not.
+Whether it is open depends on the interface that builds on `Declaration`: the `type` field of a [`Node`](#node-interface) is an extension point, while the `type` field of a [`coordinate_system`](#coordinate_system-declaration-type) is not.
 
 (rfcs:rfc8:reference-interface)=
 #### `Reference` interface
@@ -482,7 +482,7 @@ Objects that implement `Node` have the following fields:
 
 The `type` field of a `Node` defines its structure and semantics, including any additional fields it might have.
 Additional functionality of a node can be expressed through its [traits](#trait-interface).
-This RFC defines two node types: [`collection`](#collection-type-of-node) and [`multiscale`](#multiscale-type-of-node).
+This RFC defines two node types: [`collection`](#collection-node-type) and [`multiscale`](#multiscale-node-type).
 The [`array`](#array-resolution-level) type is not a node type: `array` objects are stored in the `data` field of a `multiscale` node.
 
 The `type` field of a `Node` is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
@@ -523,7 +523,7 @@ The `type` field of a trait dictates how the trait should be interpreted and def
 Trait fields are stored inside the trait object, not on the node.
 Readers that do not understand a trait MAY ignore it and still traverse the node based on its node type.
 
-This RFC defines one trait type: [`scene`](#scene-type-of-trait).
+This RFC defines one trait type: [`scene`](#scene-trait-type).
 
 The `type` field of a `Trait` is an extension point, so any extension can define its own traits following the rules set forth in the [“Extensions” section](#extensions).
 
@@ -647,9 +647,9 @@ multiscale images, and integrate coordinate systems and transformations from
 RFC-5.
 
 (rfcs:rfc8:collection-node)=
-#### `collection` (type of Node)
+#### `collection` Node type
 
-[Collections](#collection-type-of-node) are arbitrary groups of `Node`s which can be
+[Collections](#collection-node-type) are arbitrary groups of `Node`s which can be
 specialised for different use cases. Collections can be used to group together
 images, including segmentations, prediction maps and other derived images as
 well as other data types ("nodes"). Collections can be nested. Collections can
@@ -703,7 +703,7 @@ An `array` object represents one resolution level of an OME-Zarr multiscale imag
 This type replaces the `dataset` metadata defined in the previous versions of the OME-Zarr specification.
 
 `array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the root object of the `ome` key.
-Instead, they are stored in the `data` field of a [`multiscale` node](#multiscale-type-of-node), which is a leaf node.
+Instead, they are stored in the `data` field of a [`multiscale` node](#multiscale-node-type), which is a leaf node.
 `array` is the only type allowed in the `data` field, and that `type` field is not an extension point.
 
 (rfcs:rfc8:array-node-schema)=
@@ -762,7 +762,7 @@ the `input` is the `array` object itself, and the `output` is the highest-resolu
 ```
 
 (rfcs:rfc8:multiscale-node)=
-#### `multiscale` (type of Node)
+#### `multiscale` Node type
 
 A `multiscale` node represents an OME-Zarr multiscale image.
 This type replaces the multiscale metadata defined in the previous versions of the OME-Zarr specification.
@@ -780,7 +780,7 @@ A `multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 | `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
 | `"data"` | array | no | Value MUST be an array of [`array`](#array-resolution-level) objects. |
 | `"path"` | object | no | Value MUST be a `Path` object. |
-| `"coordinateSystems"` | array | yes | Value MUST be an array of [`coordinate_system`](#coordinate_system-type-of-declaration) objects. |
+| `"coordinateSystems"` | array | yes | Value MUST be an array of [`coordinate_system`](#coordinate_system-declaration-type) objects. |
 | `"coordinateTransformations"` | array | yes | Value MUST be an array of [`Coordinate Transformation`](#coordinate-transformation-interface) objects, the output of which MUST be present in the `coordinateSystems` array. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#trait-interface).|
 
@@ -921,7 +921,7 @@ A coordinate system that is declared in another document is referenced with an o
 }
 ```
 
-##### `coordinate_system` (type of Declaration)
+##### `coordinate_system` Declaration type
 
 A coordinate system is a single type that conforms to the [`Declaration` interface](#declaration-interface).
 The `coordinate_system` objects have the following fields:
@@ -974,7 +974,7 @@ Depending on the context, the `input` and `output` references point to objects o
 | **Multiscale > coordinateTransformations** | `"000001"` (the enclosing multiscale) | `"000002"` |
 
 **Multiscale > coordinateTransformations**: In the context of multiscales transformations, the following requirements apply:
-- The `input` field MUST be a reference of type `multiscale` to the enclosing [`multiscale` node](#multiscale-type-of-node).
+- The `input` field MUST be a reference of type `multiscale` to the enclosing [`multiscale` node](#multiscale-node-type).
   It stands for the highest-resolution `array` object in the `data` field of the multiscale.
   Lower-resolution `array` objects are related to the highest-resolution one by their [downsampling transformations](#downsampling-transformation-interface).
 - The `output` field MUST be a reference of type `coordinate_system` to a coordinate system in the `coordinateSystems` field of the multiscale.
@@ -1017,14 +1017,14 @@ The downsampling transformations of an `array` object can be cast into a coordin
 
 The result conforms to the [`Coordinate Transformation` interface](#coordinate-transformation-interface).
 
-##### `scene` (type of Trait)
+##### `scene` Trait type
 
 The `scene` trait MUST be an object with the following fields:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"scene"`. |
-| `"coordinateSystems"` | array | no | Values MUST be valid instances of [`coordinate_system`](#coordinate_system-type-of-declaration) objects. |
+| `"coordinateSystems"` | array | no | Values MUST be valid instances of [`coordinate_system`](#coordinate_system-declaration-type) objects. |
 | `"coordinateTransformations"` | array | yes | Values MUST be valid instances of [`Coordinate Transformation`](#coordinate-transformation-interface) objects |
 
 A `scene` metadata object can be defined in the `traits` of a collection to enrich the collection with spatial information of the nodes within the collection.
