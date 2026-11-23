@@ -297,12 +297,21 @@ Steps are resolved as follows:
   If the Zarr node is a group, its `zarr.json` becomes the current metadata document.
 - A `json` step reads the file at the current location as a [standalone JSON](#standalone-json) metadata document, which becomes the current metadata document.
   Its directory becomes the current location.
-- An `id` step selects a declaration in the current metadata document.
+- An `id` step selects the declaration with the given ID in the current metadata document.
   An `id` step MUST be the last step of a locator.
   The value of its `id` field MUST follow the [ID rules](#ids).
+  Implementations MUST report an error if no declaration with the given ID exists in the current metadata document.
 
 Implementations MUST report an error if a step cannot be applied to the result of the previous step, e.g. if a `json` step follows a `zarr` step.
 Implementations MUST use the step types to determine how to access a location and MUST NOT infer it from a path string (e.g. from a `.json` suffix or a `file://` or `https://` prefix).
+
+The `id` step MAY be left out if the other steps locate a metadata document and its root node is to be referenced.
+A locator that does not end with an `id` step and whose steps result in a metadata document locates the root node of that document, i.e. the node stored directly under the `ome` key.
+For example, `[{"type": "zarr", "path": "./raw"}]` locates the root node of the Zarr group `./raw`.
+
+Wherever a locator references a declaration, e.g. in the `input` and `output` fields of coordinate transformations,
+the field that holds the locator defines which `type`s the declaration MAY have.
+Implementations MUST report an error if the `type` of the located declaration is not allowed by that field.
 
 The `type` field of a locator step is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
 An extension that defines a custom step type defines its fields and which results of a previous step it accepts and produces.
@@ -327,26 +336,6 @@ Examples:
 
 See the [Security](#security) section for guidance on access restrictions.
 
-(rfcs:rfc8:locator-interface-declarations)=
-##### Locating declarations
-
-A locator whose last step is an `id` step locates a [declaration](#declaration-interface).
-Such locators are used to reference an object wherever it is not declared, e.g. in the `input` and `output` fields of coordinate transformations:
-
-```jsonc
-// a coordinate system declared in the same document
-"output": [{"type": "id", "id": "000002"}]
-// a coordinate system declared in another document
-"input": [{"type": "zarr", "path": "./raw"}, {"type": "id", "id": "000005"}]
-```
-
-- The steps before the final `id` step locate the metadata document that contains the declaration.
-  If the `id` step is the only step, the declaration is resolved within the current metadata document.
-- The final `id` step selects the declaration with the given ID in that document.
-- The field that holds the locator defines the `type` (or types) of declaration that the locator MUST resolve to,
-  e.g. the `output` of a scene transformation MUST resolve to a `coordinate_system`.
-  Implementations MUST report an error if no declaration with the given ID exists in the resolved document, or if its `type` is not allowed by the holding field.
-
 (rfcs:rfc8:locator-interface-resolution)=
 ##### Locator resolution
 
@@ -355,7 +344,7 @@ Resolving node locators MUST NOT form a cycle: a node's `ref` MUST NOT resolve t
 Implementations MUST detect cycles and MUST stop resolving and report an error when they encounter one.
 
 This rule applies to the `ref` fields of nodes.
-A locator that [locates a declaration](#locating-declarations) only locates that object and MAY point back to an enclosing document, e.g. from a resolution level to the coordinate systems of its multiscale.
+Locators in other fields, e.g. the `input` and `output` of coordinate transformations, only locate the referenced object and MAY point back to an enclosing document, e.g. from a resolution level to the coordinate systems of its multiscale.
 
 (rfcs:rfc8:ids)=
 #### IDs
@@ -385,7 +374,7 @@ Every declaration MUST have the following fields:
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
-Everywhere else, the object is referenced with a [locator that ends with an `id` step](#locating-declarations).
+Everywhere else, the object is referenced with a [locator](#locator-interface).
 Declarations are objects with an `id` field and locators are arrays, so that a declaration can always be distinguished from a reference.
 A declaration MAY have a `ref` field that locates where its content is stored, e.g. a node whose metadata is stored in another document.
 
@@ -759,7 +748,7 @@ Coordinate systems and transformations can be stored in two distinct locations:
 ```
 
 In a change from RFC-5, coordinate systems are referenced by ID and not by name.
-Each `input` and `output` is a [locator that ends with an `id` step](#locating-declarations).
+Each `input` and `output` is a [locator](#locator-interface) that references a declaration.
 A coordinate system that is declared in the same document is referenced with a locator that consists of a single `id` step.
 A coordinate system that is declared in another document is referenced with a locator whose steps first locate that document and then select the coordinate system with an `id` step.
 
@@ -839,8 +828,8 @@ The `Coordinate Transformation` objects have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be a valid coordinate transform type, as defined in RFC-5. |
-| `"input"` | array | yes | Value MUST be a [locator](#locating-declarations) that ends with an `id` step and locates the input of the transformation. |
-| `"output"` | array | yes | Value MUST be a [locator](#locating-declarations) that ends with an `id` step and locates the output of the transformation. |
+| `"input"` | array | yes | Value MUST be a [locator](#locator-interface) that locates the input of the transformation. |
+| `"output"` | array | yes | Value MUST be a [locator](#locator-interface) that locates the output of the transformation. |
 
 Additional fields MAY be added as required by the transform type.
 
@@ -2087,7 +2076,7 @@ from the Geo Community https://stacindex.org/ https://stacspec.org/
 
 ### Separate declaration and reference keys
 
-Several existing formats use different keys for declaring an object and for referring to it, as the [declarations](#declaration-interface) and [locators](#locating-declarations) in this RFC do:
+Several existing formats use different keys for declaring an object and for referring to it, as the [declarations](#declaration-interface) and [locators](#locator-interface) in this RFC do:
 
 - **[OME-XML](https://www.openmicroscopy.org/Schemas/)** declares objects with an `ID` attribute (e.g. `<Image ID="Image:0">`) and refers to them with dedicated `…Ref` elements (e.g. `<ImageRef ID="Image:0"/>`).
 - **[FHIR](https://hl7.org/fhir/references.html)** declares resources with an `id` and refers to them with a `Reference` data type whose `reference` field names the type and ID of the target (e.g. `"reference": "Patient/123"`).
