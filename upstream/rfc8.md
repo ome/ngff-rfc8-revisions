@@ -294,7 +294,7 @@ Steps are resolved as follows:
 - A `zarr` step opens a Zarr node and makes it the current location.
   Implementations MUST append `zarr.json` to the location to access the metadata of the Zarr node.
   As Zarr uses JSON, the `zarr.json` document MUST be parsed and interpreted as JSON.
-  If the Zarr node is a group, its `zarr.json` becomes the current metadata document.
+  The Zarr node's `zarr.json` becomes the current metadata document.
 - A `json` step reads the file at the current location as a [standalone JSON](#standalone-json) metadata document, which becomes the current metadata document.
   Its directory becomes the current location.
 - An `id` step selects the declaration with the given ID in the current metadata document.
