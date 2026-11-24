@@ -339,7 +339,7 @@ See the [Security](#security) section for guidance on access restrictions.
 (rfcs:rfc8:locator-interface-resolution)=
 ##### Locator resolution
 
-Resolving a node's `ref` means loading the document it locates, and, if the root node of that document has child nodes with a `ref`, resolving those in turn.
+Resolving a node's `ref` means loading the document it locates and selecting the located node, i.e. the root node of that document or the node selected by a final `id` step, and, if that node has child nodes with a `ref`, resolving those in turn.
 Resolving node locators MUST NOT form a cycle: a node's `ref` MUST NOT resolve to a document that contains that node, directly or through a chain of other node locators.
 Implementations MUST detect cycles and MUST stop resolving and report an error when they encounter one.
 
@@ -601,7 +601,7 @@ on a specific file system hierarchy.
 
 Either `"nodes"` or `"ref"` MUST be present, but not both.
 
-If `"ref"` is present, it MUST NOT contain an `id` step, and the document it resolves to MUST have a root node of type `collection`.
+If `"ref"` is present, the node it locates MUST have type `collection`.
 
 ```jsonc
 {
@@ -701,7 +701,7 @@ A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 
 Either `"data"` or `"ref"` MUST be present, but not both.
 
-If `"ref"` is present, it MUST NOT contain an `id` step, and the document it resolves to MUST have a root node of type `multiscale`.
+If `"ref"` is present, the node it locates MUST have type `multiscale`.
 
 ```jsonc
 {
