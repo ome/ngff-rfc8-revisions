@@ -491,7 +491,7 @@ It holds the document-level fields and a single `Node` in its `content` field.
 The `Node` stored in the `content` field is the root node of the metadata document.
 It has the same schema as any other `Node`, e.g. one declared in the `nodes` field of a `collection` node.
 Document-level fields such as `version` and `extensionManifest` are not fields of the `Node` interface,
-so a node can be moved between documents, e.g. by inlining a path-referenced node or by splitting a node out into its own document, without adding or removing them.
+so a node can be moved between documents (e.g. by inlining a path-referenced node or splitting a node out into its own document) without adding or removing them.
 
 #### Metadata storage
 
@@ -531,6 +531,7 @@ Standalone files are useful for persisting groupings of images that may or may n
 {
   // an arbitrary json
     "ome": {
+		# OME-Zarr envelope keys
         "version": "0.x",
         "content": {
             // Our `collection`-typed node fields
