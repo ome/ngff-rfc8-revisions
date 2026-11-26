@@ -52,10 +52,11 @@ authors:
     date: "2026-11-10"
 manual_status: R1
 description: Collections
-date: "2026-06-03"
+date: "2026-11-17"
 ---
 
 # RFC-8: Collections and Extensibility
+(rfcs:rfc8:version2)=
 
 ```{toctree}
 :hidden:
@@ -181,16 +182,18 @@ illustrating individual aspects of the proposal, e.g.:
 {
     "ome": {
         "version": "0.x",
-        "type": "multiscale",
-        "id": "000001",
-        "name": "our_first_example",
-        "data": [
-          {
-            "name": "s0",
-            "type": "array",
-            "ref": [{"type": "zarr", "path": "./s0"}]
-          }
-        ]
+        "content": {
+            "type": "multiscale",
+            "id": "000001",
+            "name": "our_first_example",
+            "data": [
+              {
+                "name": "s0",
+                "type": "array",
+                "ref": [{"type": "zarr", "path": "./s0"}]
+              }
+            ]
+        }
     }
 }
 ```
@@ -306,7 +309,7 @@ Implementations MUST report an error if a step cannot be applied to the result o
 Implementations MUST use the step types to determine how to access a location and MUST NOT infer it from a path string (e.g. from a `.json` suffix or a `file://` or `https://` prefix).
 
 The `id` step MAY be left out if the other steps locate a metadata document and its root node is to be referenced.
-A locator that does not end with an `id` step and whose steps result in a metadata document locates the root node of that document, i.e. the node stored directly under the `ome` key.
+A locator that does not end with an `id` step and whose steps result in a metadata document locates the root node of that document, i.e. the `content` of its [OME-Zarr envelope](#ome-zarr-envelope).
 For example, `[{"type": "zarr", "path": "./raw"}]` locates the root node of the Zarr group `./raw`.
 
 Wherever a locator references a declaration, e.g. in the `input` and `output` fields of coordinate transformations,
@@ -410,8 +413,6 @@ Objects that implement `Node` have the following fields:
 | `"type"` | string | yes | Value MUST be a string identifying the node type. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
-| `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
-| `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
 
 (rfcs:rfc8:abstract-structure-node-field-type)=
@@ -423,20 +424,6 @@ This RFC defines two node types: `collection` and `multiscale`.
 A third kind of object, the `array`, is not a node type: `array` objects are stored in the `data` field of a `multiscale` node.
 
 The `type` field of a `Node` is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
-
-(rfcs:rfc8:abstract-structure-node-field-version)=
-##### Field: `version`
-
-The root node of a metadata document, i.e. the `Node` object stored directly under the `ome` key, MUST have a `version` field, as defined in previous spec versions.
-Non-root `Node` objects, e.g. those declared in the `nodes` field of a `collection` node,
-SHOULD NOT have a `version` field and MUST NOT have a different `version` value than the root `Node`.
-
-(rfcs:rfc8:abstract-structure-node-field-extensionManifest)=
-##### Field: `extensionManifest`
-
-The root node of a metadata document MUST have an `extensionManifest` field if the document uses extension-defined custom types.
-Non-root `Node` objects MUST NOT have an `extensionManifest` field.
-See [Extension manifest](#extension-manifest) for its contents.
 
 (rfcs:rfc8:abstract-structure-traits)=
 #### Traits
@@ -455,11 +442,31 @@ This RFC defines one type of trait: [`scene`](#scene-trait).
 
 Trait types are also an extension point, so any extension can define its own traits following the rules set forth in the [“Extensions” section](#extensions).
 
+(rfcs:rfc8:ome-zarr-envelope)=
+#### OME-Zarr envelope
+
+The OME-Zarr envelope is the object stored under the `ome` key of a metadata document (see [Metadata storage](#metadata-storage)).
+It holds the document-level fields and a single `Node` in its `content` field.
+
+(rfcs:rfc8:ome-zarr-envelope-schema)=
+##### Schema
+
+| Field | Type | Required? | Notes |
+| - | - | - | - |
+| `"version"` | string | yes | Value MUST be the version of the OME-Zarr specification, as defined in previous spec versions. |
+| `"extensionManifest"` | array | no | Value MUST be an array of extension objects. MUST be present if the document uses extension-defined custom types. See [Extension manifest](#extension-manifest). |
+| `"content"` | object | yes | Value MUST be a `Node` object. |
+
+The `Node` stored in the `content` field is the root node of the metadata document.
+It has the same schema as any other `Node`, e.g. one declared in the `nodes` field of a `collection` node.
+Document-level fields such as `version` and `extensionManifest` are not fields of the `Node` interface,
+so a node can be moved between documents (e.g. by inlining a node located by a `ref` or splitting a node out into its own document) without adding or removing them.
+
 #### Metadata storage
 
 ##### OME-Zarr group
 
-Node metadata may be stored in the `ome` key of the `attributes` container in a `zarr.json` file of a Zarr group.
+An OME-Zarr envelope may be stored in the `ome` key of the `attributes` container in a `zarr.json` file of a Zarr group.
 This is particularly useful for defining the nodes that are stored within a Zarr group. However, there is no limitation to only reference nodes within the Zarr group.
 
 ```jsonc
@@ -470,12 +477,14 @@ This is particularly useful for defining the nodes that are stored within a Zarr
     "attributes": {
         "ome": {
             "version": "0.x",
-            // Our `collection`-typed node fields
-            // are listed here
-            "type": "collection",
-            "id": "000001",
-            "name": "zarr.json-example",
-            "nodes": [...]
+            "content": {
+                // Our `collection`-typed node fields
+                // are listed here
+                "type": "collection",
+                "id": "000001",
+                "name": "zarr.json-example",
+                "nodes": [...]
+            }
         }
     }
 }
@@ -483,21 +492,24 @@ This is particularly useful for defining the nodes that are stored within a Zarr
 
 ##### Standalone JSON
 
-Node metadata may also be stored in standalone JSON files that are stored in arbitrary locations and have a file name ending in `.json`.
-Here, the metadata is stored in the `ome` key of the root object.
+Metadata documents may also be stored in standalone JSON files that are stored in arbitrary locations and have a file name ending in `.json`.
+Here, the OME-Zarr envelope is stored in the `ome` key of the root object.
 Standalone files are useful for persisting groupings of images that may or may not be stored in the same folder hierarchy.
 
 ```jsonc
 {
   // an arbitrary json
     "ome": {
+		# OME-Zarr envelope keys
         "version": "0.x",
-        // Our `collection`-typed node fields
-        // are listed here
-        "type": "collection",
-        "id": "000001",
-        "name": "standalone-example",
-        "nodes": [...]
+        "content": {
+            // Our `collection`-typed node fields
+            // are listed here
+            "type": "collection",
+            "id": "000001",
+            "name": "standalone-example",
+            "nodes": [...]
+        }
     }
 }
 ```
@@ -521,17 +533,19 @@ This also applies to nested collections: their `zarr.json` documents may be cons
     "attributes": {
         "ome": {
             "version": "0.x",
-            "type": "collection",
-            "id": "000001",
-            "name": "consolidated-example",
-            "nodes": [
-                {
-                    "type": "multiscale",
-                    "id": "000002",
-                    "name": "image",
-                    "ref": [{"type": "zarr", "path": "./image"}]
-                }
-            ]
+            "content": {
+                "type": "collection",
+                "id": "000001",
+                "name": "consolidated-example",
+                "nodes": [
+                    {
+                        "type": "multiscale",
+                        "id": "000002",
+                        "name": "image",
+                        "ref": [{"type": "zarr", "path": "./image"}]
+                    }
+                ]
+            }
         }
     },
     "consolidated_metadata": {
@@ -593,8 +607,6 @@ on a specific file system hierarchy.
 | `"type"` | string | yes | Value MUST be `"collection"`. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
-| `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
-| `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
 | `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
 | `"ref"` | array | no | Value MUST be a [locator](#locator-interface) that locates a metadata document. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
@@ -607,15 +619,17 @@ If `"ref"` is present, the node it locates MUST have type `collection`.
 {
   "ome": {
       "version": "0.x",
-      "type": "collection",
-      "id": "000001",
-      "name": "proj_gallery",
-      "nodes": [{
+      "content": {
           "type": "collection",
-          "id": "000002",
-          "name": "gallery1",
-          "ref": [{"type": "relative", "path": "../gallery.json"}, {"type": "json"}]
-      }, ...]
+          "id": "000001",
+          "name": "proj_gallery",
+          "nodes": [{
+              "type": "collection",
+              "id": "000002",
+              "name": "gallery1",
+              "ref": [{"type": "relative", "path": "../gallery.json"}, {"type": "json"}]
+          }, ...]
+      }
   }
 }
 ```
@@ -626,7 +640,7 @@ If `"ref"` is present, the node it locates MUST have type `collection`.
 An `Array` object represents one resolution level of an OME-Zarr multiscale image.
 This new interface replaces the `dataset` metadata defined in the previous versions of the OME-Zarr specification.
 
-`Array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the root object of the `ome` key.
+`Array` objects are not nodes: they cannot appear in a `nodes` array and cannot be the `content` of an [OME-Zarr envelope](#ome-zarr-envelope).
 Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscale-node), which is a leaf node.
 
 (rfcs:rfc8:array-node-schema)=
@@ -653,25 +667,27 @@ the `input` is the `Array` object itself, and the `output` is the highest-resolu
 {
   "ome": {
     "version": "0.x",
-    "type": "multiscale",
-    "id": "000001",
-    "name": "our_first_pyramid",
-    "coordinateSystems": [...],
-    "coordinateTransformations": [...],
-    "data": [
-      {
-        "type": "array",
-        "ref": [{"type": "zarr", "path": "s0"}]
-      },
-      {
-        "type": "array",
-        "ref": [{"type": "zarr", "path": "s1"}],
-        "downsamplingTransformations": [
-          {"type": "scale", "scale": [1, 2, 2]},
-          {"type": "translation", "translation": [0, 0.5, 0.5]}
-        ]
-      }
-    ]
+    "content": {
+      "type": "multiscale",
+      "id": "000001",
+      "name": "our_first_pyramid",
+      "coordinateSystems": [...],
+      "coordinateTransformations": [...],
+      "data": [
+        {
+          "type": "array",
+          "ref": [{"type": "zarr", "path": "s0"}]
+        },
+        {
+          "type": "array",
+          "ref": [{"type": "zarr", "path": "s1"}],
+          "downsamplingTransformations": [
+            {"type": "scale", "scale": [1, 2, 2]},
+            {"type": "translation", "translation": [0, 0.5, 0.5]}
+          ]
+        }
+      ]
+    }
   }
 }
 ```
@@ -691,8 +707,6 @@ A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 | `"type"` | string | yes | Value MUST be `"multiscale"`. |
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
-| `"version"` | string | root node only | Value MUST be the version of the OME-Zarr specification. Required on the root node of a metadata document. See [Field: `version`](#field-version). |
-| `"extensionManifest"` | array | root node only | Value MUST be an array of extension objects. Required on the root node of a metadata document that uses extensions. See [Extension manifest](#extension-manifest). |
 | `"data"` | array | no | Value MUST be an array of `Array` objects. [See array object](#array-object). |
 | `"ref"` | array | no | Value MUST be a [locator](#locator-interface) that locates a metadata document. |
 | `"coordinateSystems"` | array | yes | Value MUST be an array of `coordinateSystem` objects. |
@@ -707,17 +721,19 @@ If `"ref"` is present, the node it locates MUST have type `multiscale`.
 {
     "ome": {
         "version": "0.x",
-        "type": "multiscale",
-        "id": "000001",
-        "name": "imagepyramid1",
-        "data": [
-          {
-            "name": "s0",
-            "type": "array",
-            "ref": [{"type": "zarr", "path": "./s0"}]
-          },
-          ...
-        ]
+        "content": {
+            "type": "multiscale",
+            "id": "000001",
+            "name": "imagepyramid1",
+            "data": [
+              {
+                "name": "s0",
+                "type": "array",
+                "ref": [{"type": "zarr", "path": "./s0"}]
+              },
+              ...
+            ]
+        }
     }
 }
 ```
@@ -756,50 +772,52 @@ A coordinate system that is declared in another document is referenced with a lo
 {
   "ome": {
     "version": "0.x",
-    "type": "collection",
-    "name": "Tiles",
-    "id": "000001",
-    "traits": [
-      {
-        "type": "scene",
-        "coordinateSystems": [
-          {
-            "type": "coordinate_system",
-            "id": "000002",
-            "name": "world",
-            "axes": [...]
-          }
-        ],
-        "coordinateTransformations": [
-          {
-            "type": "translation",
-            "translation": [0, 0, 100],
-            "input": [{"type": "zarr", "path": "./tile_0.zarr"}, {"type": "id", "id": "000005"}],  // references coordinate system "physical" defined in tile_0
-            "output": [{"type": "id", "id": "000002"}]  // references coordinate system "world" defined in same node
-          },
-          {
-            "type": "translation",
-            "translation": [100, 0, 0],
-            "input": [{"type": "zarr", "path": "./tile_1.zarr"}, {"type": "id", "id": "000006"}],  // references coordinate system "physical" defined in tile_1
-            "output": [{"type": "id", "id": "000002"}]  // references coordinate system "world" defined in same node
-          }
-        ]
-      }
-    ],
-    "nodes": [
-      {
-        "type": "multiscale",
-        "id": "000003",
-        "name": "Tile 0",
-        "ref": [{"type": "zarr", "path": "./tile_0.zarr"}]
-      },
-      {
-        "type": "multiscale",
-        "id": "000004",
-        "name": "Tile 1",
-        "ref": [{"type": "zarr", "path": "./tile_1.zarr"}]
-      }
-    ]
+    "content": {
+      "type": "collection",
+      "name": "Tiles",
+      "id": "000001",
+      "traits": [
+        {
+          "type": "scene",
+          "coordinateSystems": [
+            {
+              "type": "coordinate_system",
+              "id": "000002",
+              "name": "world",
+              "axes": [...]
+            }
+          ],
+          "coordinateTransformations": [
+            {
+              "type": "translation",
+              "translation": [0, 0, 100],
+              "input": [{"type": "zarr", "path": "./tile_0.zarr"}, {"type": "id", "id": "000005"}],  // references coordinate system "physical" defined in tile_0
+              "output": [{"type": "id", "id": "000002"}]  // references coordinate system "world" defined in same node
+            },
+            {
+              "type": "translation",
+              "translation": [100, 0, 0],
+              "input": [{"type": "zarr", "path": "./tile_1.zarr"}, {"type": "id", "id": "000006"}],  // references coordinate system "physical" defined in tile_1
+              "output": [{"type": "id", "id": "000002"}]  // references coordinate system "world" defined in same node
+            }
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "type": "multiscale",
+          "id": "000003",
+          "name": "Tile 0",
+          "ref": [{"type": "zarr", "path": "./tile_0.zarr"}]
+        },
+        {
+          "type": "multiscale",
+          "id": "000004",
+          "name": "Tile 1",
+          "ref": [{"type": "zarr", "path": "./tile_1.zarr"}]
+        }
+      ]
+    }
   }
 }
 ```
@@ -962,7 +980,7 @@ For example, the [locator steps](#locator-interface) proposed by this very RFC h
 
 ### Extension manifest
 
-Any JSON file that makes use of extension-defined custom types MUST declare an extension manifest, which MUST list every extension used within the file. The manifest is stored under the `extensionManifest` key of the `ome` object.
+Any JSON file that makes use of extension-defined custom types MUST declare an extension manifest, which MUST list every extension used within the file. The manifest is stored under the `extensionManifest` key in the [OME-Zarr envelope](#ome-zarr-envelope).
 
 The extension manifest has several purposes, all stemming from the intention of making extensions “manageable”. Notably, it is intended to:
 
@@ -1046,30 +1064,32 @@ The step does not depend on a previous step, so it is the first step of the loca
                 ]
             }
         ],
-        "type": "collection",
-        "id": "000003",
-        "nodes": [
-            {
-                "name": "original-acquisition",
-                "type": "multiscale",
-                "id": "000001",
-                "ref": [
-                    {
-                        "type": "https://ngff.example.org/omero/OMEROImage",
-                        "url": "https://omero.example.org/webclient/?show=image-48213",
-                        "host": "omero.example.org",
-                        "port": 4064,
-                        "imageId": 48213
-                    }
-                ]
-            },
-            {
-                "name": "segmentation",
-                "type": "multiscale",
-                "id": "000002",
-                "ref": [{"type": "zarr", "path": "./segmentation"}]
-            }
-        ]
+        "content": {
+            "type": "collection",
+            "id": "000003",
+            "nodes": [
+                {
+                    "name": "original-acquisition",
+                    "type": "multiscale",
+                    "id": "000001",
+                    "ref": [
+                        {
+                            "type": "https://ngff.example.org/omero/OMEROImage",
+                            "url": "https://omero.example.org/webclient/?show=image-48213",
+                            "host": "omero.example.org",
+                            "port": 4064,
+                            "imageId": 48213
+                        }
+                    ]
+                },
+                {
+                    "name": "segmentation",
+                    "type": "multiscale",
+                    "id": "000002",
+                    "ref": [{"type": "zarr", "path": "./segmentation"}]
+                }
+            ]
+        }
     }
 }
 ```
@@ -1173,45 +1193,47 @@ In this example, a `https://ngff.example.com/transforms/` extension defines a cu
                 ]
             }
         ],
-        "type": "collection",
-        "id": "000001",
-        "nodes": [ /* ... */ ],
-        "traits": [
-            {
-                "type": "scene",
-                "coordinateSystems": [
-                    {
-                        "type": "coordinate_system",
-                        "id": "000002",
-                        "name": "physical",
-                        "axes": [
-                            {"name": "y", "type": "space", "units": "micrometer"},
-                            {"name": "x", "type": "space", "units": "micrometer"}
-                        ]
-                    },
-                    {
-                        "type": "coordinate_system",
-                        "id": "000003",
-                        "name": "registered",
-                        "axes": [
-                            {"name": "y", "type": "space", "units": "micrometer"},
-                            {"name": "x", "type": "space", "units": "micrometer"}
-                        ]
-                    }
-                ],
-                "coordinateTransformations": [
-                    {
-                        "type": "https://ngff.example.com/transforms/ThinPlateSpline",
-                        "input": [{"type": "id", "id": "000002"}],
-                        "output": [{"type": "id", "id": "000003"}],
-                        "controlPoints": {
-                            "ref": [{"type": "zarr", "path": "./tps/control_points"}]
+        "content": {
+            "type": "collection",
+            "id": "000001",
+            "nodes": [ /* ... */ ],
+            "traits": [
+                {
+                    "type": "scene",
+                    "coordinateSystems": [
+                        {
+                            "type": "coordinate_system",
+                            "id": "000002",
+                            "name": "physical",
+                            "axes": [
+                                {"name": "y", "type": "space", "units": "micrometer"},
+                                {"name": "x", "type": "space", "units": "micrometer"}
+                            ]
                         },
-                        "regularization": 0.01
-                    }
-                ]
-            }
-        ]
+                        {
+                            "type": "coordinate_system",
+                            "id": "000003",
+                            "name": "registered",
+                            "axes": [
+                                {"name": "y", "type": "space", "units": "micrometer"},
+                                {"name": "x", "type": "space", "units": "micrometer"}
+                            ]
+                        }
+                    ],
+                    "coordinateTransformations": [
+                        {
+                            "type": "https://ngff.example.com/transforms/ThinPlateSpline",
+                            "input": [{"type": "id", "id": "000002"}],
+                            "output": [{"type": "id", "id": "000003"}],
+                            "controlPoints": {
+                                "ref": [{"type": "zarr", "path": "./tps/control_points"}]
+                            },
+                            "regularization": 0.01
+                        }
+                    ]
+                }
+            ]
+        }
     }
 }
 ```
@@ -1252,31 +1274,33 @@ In this example, two OME-Zarr viewers, “Viewer A” and “Viewer B” each ha
                 ]
             }
         ],
-        "type": "collection",
-        "id": "000001",
-        "nodes": [
-            {
-                "name": "nuclei",
-                "type": "multiscale",
-                "id": "000002",
-                "ref": [{"type": "zarr", "path": "./nuclei"}],
-                "traits": [
-                    {
-                        "type": "https://viewer-a.example.com/settings/Layer",
-                        "visible": true,
-                        "opacity": 1.0,
-                        "shader": "void main() { emitRGB(vec3(0.0, 0.0, toNormalized(getDataValue()))); }"
-                    },
-                    {
-                        "type": "https://viewer-b.example.org/rendering/Display",
-                        "colormap": "blue",
-                        "contrastLimits": [110, 3800],
-                        "gamma": 1.0,
-                        "blending": "additive"
-                    }
-                ]
-            }
-        ]
+        "content": {
+            "type": "collection",
+            "id": "000001",
+            "nodes": [
+                {
+                    "name": "nuclei",
+                    "type": "multiscale",
+                    "id": "000002",
+                    "ref": [{"type": "zarr", "path": "./nuclei"}],
+                    "traits": [
+                        {
+                            "type": "https://viewer-a.example.com/settings/Layer",
+                            "visible": true,
+                            "opacity": 1.0,
+                            "shader": "void main() { emitRGB(vec3(0.0, 0.0, toNormalized(getDataValue()))); }"
+                        },
+                        {
+                            "type": "https://viewer-b.example.org/rendering/Display",
+                            "colormap": "blue",
+                            "contrastLimits": [110, 3800],
+                            "gamma": 1.0,
+                            "blending": "additive"
+                        }
+                    ]
+                }
+            ]
+        }
     }
 }
 ```
@@ -1478,23 +1502,25 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
 {
   "ome": {
     "version": "0.x",
-    "type": "multiscale",
-    "name": "multiscales_example",
-    "id": "000001",
-    "data": [
-      {
-        "type": "array",
-        "ref": [{"type": "zarr", "path": "./s0"}]
-      }
-    ],
-    "coordinateSystems": [
-      {
-        "type": "coordinate_system",
-        "id": "000002",
-        "name": "physical",
-        "axes": [...]
-      }
-    ]
+    "content": {
+      "type": "multiscale",
+      "name": "multiscales_example",
+      "id": "000001",
+      "data": [
+        {
+          "type": "array",
+          "ref": [{"type": "zarr", "path": "./s0"}]
+        }
+      ],
+      "coordinateSystems": [
+        {
+          "type": "coordinate_system",
+          "id": "000002",
+          "name": "physical",
+          "axes": [...]
+        }
+      ]
+    }
   }
 }
 ```
@@ -1505,39 +1531,41 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
 {
   "ome": {
     "version": "0.x",
-    "type": "multiscale",
-    "name": "multiscales_example",
-    "id": "000001",
-    "data": [
-      {
-        "type": "array",
-        "ref": [{"type": "zarr", "path": "./s0"}]
-      },
-      {
-        "type": "array",
-        "ref": [{"type": "zarr", "path": "./s1"}],
-        "downsamplingTransformations": [
-          {"type": "scale", "scale": [1, 2, 2]},
-          {"type": "translation", "translation": [0, 0.5, 0.5]}
-        ]
-      }
-    ],
-    "coordinateSystems": [
-      {
-        "type": "coordinate_system",
-        "id": "000002",
-        "name": "physical",
-        "axes": [...]
-      }
-    ],
-    "coordinateTransformations": [
-      {
-        "type": "scale",
-        "scale": [0.9, 0.45, 0.45],
-        "input": [{"type": "id", "id": "000001"}],
-        "output": [{"type": "id", "id": "000002"}]
-      }
-    ]
+    "content": {
+      "type": "multiscale",
+      "name": "multiscales_example",
+      "id": "000001",
+      "data": [
+        {
+          "type": "array",
+          "ref": [{"type": "zarr", "path": "./s0"}]
+        },
+        {
+          "type": "array",
+          "ref": [{"type": "zarr", "path": "./s1"}],
+          "downsamplingTransformations": [
+            {"type": "scale", "scale": [1, 2, 2]},
+            {"type": "translation", "translation": [0, 0.5, 0.5]}
+          ]
+        }
+      ],
+      "coordinateSystems": [
+        {
+          "type": "coordinate_system",
+          "id": "000002",
+          "name": "physical",
+          "axes": [...]
+        }
+      ],
+      "coordinateTransformations": [
+        {
+          "type": "scale",
+          "scale": [0.9, 0.45, 0.45],
+          "input": [{"type": "id", "id": "000001"}],
+          "output": [{"type": "id", "id": "000002"}]
+        }
+      ]
+    }
   }
 }
 ```
@@ -1548,32 +1576,34 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
 {
     "ome": {
         "version": "0.x",
-        "type": "collection",
-        "id": "000001",
-        "name": "jrc_hela-1",
-        "nodes": [
-          {
-            "name": "raw",
-            "type": "multiscale",
-            "id": "000002",
-            "ref": [{"type": "zarr", "path": "./raw"}],
-            "traits": [
-                {
-                    "type": "example-viewer.org/ngff/settings",
-                    "isDisabled": true
-                },
-                {
-                ... // arbitrary user-defined metadata
-                }
+        "content": {
+            "type": "collection",
+            "id": "000001",
+            "name": "jrc_hela-1",
+            "nodes": [
+              {
+                "name": "raw",
+                "type": "multiscale",
+                "id": "000002",
+                "ref": [{"type": "zarr", "path": "./raw"}],
+                "traits": [
+                    {
+                        "type": "example-viewer.org/ngff/settings",
+                        "isDisabled": true
+                    },
+                    {
+                    ... // arbitrary user-defined metadata
+                    }
+                ]
+              },
+              {
+                  "name": "nested_collection",
+                  "type": "collection",
+                  "id": "000003",
+                  "ref": [{"type": "relative", "path": "./nested_collection.json"}, {"type": "json"}]
+              }, ...
             ]
-          },
-          {
-              "name": "nested_collection",
-              "type": "collection",
-              "id": "000003",
-              "ref": [{"type": "relative", "path": "./nested_collection.json"}, {"type": "json"}]
-          }, ...
-        ]
+        }
     }
 }
 ```
@@ -1585,39 +1615,41 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
 {
     "ome": {
         "version": "0.x",
-        "type": "collection",
-        "id": "000001",
-        "name": "example",
-        "nodes": [
-          {
-            "name": "raw",
-            "id": "000002",
-            "type": "multiscale",
-            "data": [
+        "content": {
+            "type": "collection",
+            "id": "000001",
+            "name": "example",
+            "nodes": [
               {
-                "name": "raw_0",
-                "type": "array",
-                "ref": [{"type": "zarr", "path": "./raw/0"}]
-              }
-            ],
-            "coordinateTransformations": [
-              {
-                "type": "scale",
-                "scale": [1, 1, 1],
-                "input": [{"type": "id", "id": "000002"}],
-                "output": [{"type": "id", "id": "000003"}]
-              }
-            ],
-            "coordinateSystems": [
-              {
-                "type": "coordinate_system",
-                "id": "000003",
-                "name": "physical",
-                "axes": [...]
+                "name": "raw",
+                "id": "000002",
+                "type": "multiscale",
+                "data": [
+                  {
+                    "name": "raw_0",
+                    "type": "array",
+                    "ref": [{"type": "zarr", "path": "./raw/0"}]
+                  }
+                ],
+                "coordinateTransformations": [
+                  {
+                    "type": "scale",
+                    "scale": [1, 1, 1],
+                    "input": [{"type": "id", "id": "000002"}],
+                    "output": [{"type": "id", "id": "000003"}]
+                  }
+                ],
+                "coordinateSystems": [
+                  {
+                    "type": "coordinate_system",
+                    "id": "000003",
+                    "name": "physical",
+                    "axes": [...]
+                  }
+                ]
               }
             ]
-          }
-        ]
+        }
     }
 }
 ```
@@ -2210,7 +2242,7 @@ Briefly, the most important characteristics of the Zarr-level mechanisms are:
 
 Because they are strictly reserved for Zarr-defined extension points, Zarr Extensions were not considered as a possible solution for OME-Zarr extensibility. Basically, Zarr Extensions are for Zarr-defined extension points and OME-Zarr extensions (as defined in the present RFC) are for OME-Zarr-defined extension points; OME-Zarr extensions do _not_ supersede or replace Zarr Extensions, which MUST still be used whenever one wants to extend a Zarr extension point (for example, defining a new Zarr codec CANNOT be done using an OME-Zarr extension).
 
-Zarr Conventions _were_ considered as a candidate mechanism for OME-Zarr extensibility. We rejected them for essentially three reasons: (a) there is a considerable misalignment between Zarr Conventions and our [desired characteristics](#desired-characteristics-for-ome-zarrs-extensibility-mechanism), (b) though it is _not_ listed as a “desired characteristic”, it is our intention that “OME-Zarr extensions” could be used in a broader OME context than just OME-Zarr, which precludes relying on a Zarr-specific mechanism; (c) the stability of the Zarr Conventions specification is unclear, notably as, according to the [governance document](https://github.com/zarr-conventions/zarr-conventions-spec/blob/main/GOVERNANCE.md), the specification of Zarr Conventions can be changed at anytime with the approval of two members of the Zarr Conventions’ “Core Developers Group” (CDG) – we believe that this falls short of the rigourous RFC process used for the OME-Zarr specification.
+Zarr Conventions _were_ considered as a candidate mechanism for OME-Zarr extensibility. We rejected them for essentially three reasons: (a) there is a considerable misalignment between Zarr Conventions and our [desired characteristics](#desired-characteristics-for-ome-zarrs-extensibility-mechanism), (b) though it is _not_ listed as a “desired characteristic”, it is our intention that “OME-Zarr extensions” could be used in a broader OME context than just OME-Zarr, which precludes relying on a Zarr-specific mechanism; (c) the stability of the Zarr Conventions specification is unclear, notably as, according to the [governance document](https://github.com/zarr-conventions/zarr-conventions-spec/blob/main/GOVERNANCE.md), the specification of Zarr Conventions can be changed at anytime with the approval of two members of the Zarr Conventions’ “Core Developers Group” (CDG) – we believe that this falls short of the rigorous RFC process used for the OME-Zarr specification.
 
 Regarding point (a) above, the main misalignments were:
 
@@ -2218,7 +2250,7 @@ Regarding point (a) above, the main misalignments were:
 
 **No mechanisms to avoid conflicts between independently developed extensions.** Each Zarr Convention has a unique identifier (either a UUID or, in the absence of a UUID, a URL), but the identifier only identifies the Zarr Convention itself – it is not used to distinguish the _keys_ that are defined by the convention. The keys defined by a Zarr Convention are distinguished from keys defined by other Zarr Conventions by either
 
-* a prefix freely choosen by the Zarr Convention’s author, that is prepended to every key;
+* a prefix freely chosen by the Zarr Convention’s author, that is prepended to every key;
 * moving all the keys in a subdictionary whose name is itself freely chosen by the Zarr Convention’s author.
 
 It is entirely left to the author of any given Zarr Convention to take care of choosing a prefix (or a subdictionary name) that will not conflict with any other Zarr Convention – something that may be difficult, or even impossible, to achieve given that, though a central registry of Zarr Conventions exists:
@@ -2228,7 +2260,7 @@ It is entirely left to the author of any given Zarr Convention to take care of c
 
 Furthermore, not only the Zarr Conventions specification does not prevent conflicting prefixes (again, leaving that responsibility to each Zarr Convention author), it is also silent as to what should happen when a naming conflict does occur.
 
-For example, if the creator of a Zarr fileset wants to use two Zarr Conventions that happen to use the same prefix (or the same subdictionary name), it is unclear whether (a) this is simply not possible or (b) the creator is allowed to unilateraly change the prefix (or subdictionary name) of one of the two Conventions so that it does not conflict with the other. If (b), then this creates a validation problem because the JSON-Schema that the Zarr Convention may provide to allow validating its data will _not_ be aware of the renaming.
+For example, if the creator of a Zarr fileset wants to use two Zarr Conventions that happen to use the same prefix (or the same subdictionary name), it is unclear whether (a) this is simply not possible or (b) the creator is allowed to unilaterally change the prefix (or subdictionary name) of one of the two Conventions so that it does not conflict with the other. If (b), then this creates a validation problem because the JSON-Schema that the Zarr Convention may provide to allow validating its data will _not_ be aware of the renaming.
 
 (Incidentally the latter point is an illustration of why trying to use prefixes in JSON as a poor man’s namespacing system is generally a bad idea. Prefixes work as a namespacing system in XML because XML has built-in support for prefixed namespaces; JSON has not.)
 
