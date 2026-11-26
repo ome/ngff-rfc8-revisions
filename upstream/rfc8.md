@@ -1035,14 +1035,14 @@ In the rest of this document, the word “extension” will be understood as ref
 
 ### Extension and custom type identifiers
 
-An extension MUST have a unique identifier, which SHOULD be an absolute URI that SHOULD end with either `#` or `/`.
+An extension MUST have a unique identifier that MUST end with `/`. The identifier SHOULD be an absolute URI e.g. a URL-based identifier for a domain (or a path on it) under the control of the extension developers. URI identifiers MAY resolve to a related resource or they MAY be non-resolving.
+Non-resolving identifiers cannot be guaranteed to be unique across all OME-Zarr extensions,
+so extension developers should be judicious in their choice of namespaces.
 
-All custom types defined by an extension MUST have their own unique identifier, which MUST be built by appending a type-specific suffix (the type’s _local name_, within the context of the extension that defines it) to the extension’s identifier.
+All custom types defined by an extension MUST also have their own unique identifier, which MUST be built by appending a type-specific suffix (the type’s _local name_, within the context of the extension that defines it) to the extension’s identifier.
+This guarantees the unicity of custom types defined by different extensions within the same document.
 
 > For example, if an extension with the identifier `https://example.org/my-ngff-extension/` defined a new type of coordinate transformation named `NonLinearTransform`, the identifier for the new type would be `https://example.org/my-ngff-extension/NonLinearTransform`, with `NonLinearTransform` being the type’s local name.
-
-Extensions that add functions to existing structures SHOULD define new trait types rather than new node types.
-New node types are intended for data whose structure cannot be represented by the existing node types.
 
 ### Extension points
 
@@ -1053,6 +1053,9 @@ An extension point is a `type` field within an object where (1) the value of the
 At such an extension point, a custom type may be used by specifying its identifier in the `type` field, in lieu of one of the values allowed by the specification. The custom type, as defined by the extension it belongs to, will then dictate how the object is to be interpreted.
 
 For example, the [`Path` interface](#path-interface) proposed by this very RFC has an extension point: it has a `type` field defined as accepting two values (`zarr` and `json`); the value dictates how the entire `Path` object is to be interpreted; and the specification explicitly states it is an extension point. An extension could then define a new, custom type of `Path` object.
+
+Extensions that add functions to existing structures SHOULD define new trait types rather than new node types.
+New node types are intended for data whose structure cannot be represented by the existing node types.
 
 ### Extension manifest
 
