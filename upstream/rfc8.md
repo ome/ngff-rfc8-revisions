@@ -190,11 +190,7 @@ illustrating individual aspects of the proposal, e.g.:
               {
                 "name": "s0",
                 "type": "array",
-                "path": {
-                  "type": "zarr",
-                  "format": "relative",
-                  "href": "./s0"
-                }
+                "ref": [{"type": "zarr", "path": "./s0"}]
               }
             ]
         }
@@ -227,78 +223,113 @@ The following features are being deferred to sub-RFCs:
 
 ### Building blocks
 
-The building blocks define how objects are represented using paths, declarations and references.
+The building blocks define how objects are represented using locators and declarations.
 
-(rfcs:rfc8:path-interface)=
-#### `Path` interface
+(rfcs:rfc8:locator-interface)=
+#### `Locator` interface
 
 This new interface replaces the paths defined in the previous versions of the
 OME-Zarr specification.
+Locators locate any referenceable object in OME-Zarr metadata, whether it is declared in the same metadata document or in another one,
+e.g. [nodes](#node-interface), coordinate systems and the Zarr arrays of [`Array` objects](#array-object).
+A locator is stored in the `ref` field of a node or an `Array` object, or directly as the value of a field that references a declaration, such as the `input` and `output` of a coordinate transformation.
+See [Locators and URL pipelines](#locators-and-url-pipelines) for prior art.
 
-(rfcs:rfc8:path-interface-example)=
+The value of a `ref` field is a locator: an ordered, non-empty array of locator steps.
+The steps form a pipeline: each step resolves relative to the result of the previous step.
+The first step resolves relative to the metadata document that contains the `ref` field.
+
+(rfcs:rfc8:locator-interface-example)=
 ##### Example
 
 From our first example, this is the lowest level type
 used to build up the definition of an image.
+It locates the Zarr array at the relative path `./s0`:
 
 ```jsonc
-    "path": {
-        "type": "zarr",
-        "format": "relative",
-        "href": "./s0"
-    }
+    "ref": [{"type": "zarr", "path": "./s0"}]
 ```
 
-(rfcs:rfc8:path-interface-schema)=
+More examples:
+
+```jsonc
+// a node stored in another Zarr group
+"ref": [{"type": "zarr", "path": "./raw"}]
+// a node stored in a standalone JSON file
+"ref": [{"type": "relative", "path": "./labels.json"}, {"type": "json"}]
+// a declaration in another document
+"ref": [{"type": "zarr", "path": "./raw"}, {"type": "id", "id": "000005"}]
+// a declaration in the current document
+"ref": [{"type": "id", "id": "000002"}]
+```
+
+(rfcs:rfc8:locator-interface-schema)=
 ##### Schema
+
+A `ref` field MUST be a non-empty array of locator step objects.
+Each locator step object MUST have the following field:
 
 | Field | Type | Required? | Notes |
 | - | - | - | - |
-| `"type"` | string | yes | Value MUST be a valid path type. |
-| `"format"` | string | yes | Value MUST be a valid path format. See below. |
-| `"href"` | string | yes | Value MUST be a string containing a path in the declared `format`. See below. |
+| `"type"` | string | yes | Value MUST be a valid locator step type. See below. |
 
-(rfcs:rfc8:path-interface-field-type)=
+Additional fields of a locator step are defined by its `type`.
+
+(rfcs:rfc8:locator-interface-field-type)=
 ##### Field: `type`
 
-The `type` field of a `Path` object defines how the path is interpreted. This RFC defines two path types: `zarr` and `json`:
+The `type` field of a locator step defines how the step is resolved and which other fields the step has.
+This RFC defines four locator step types:
 
-- The `"zarr"` type is used for paths that reference nodes in a Zarr array or
-  group. Implementations MUST append `zarr.json` to the path to access the
-  metadata of the referenced node.
-- The `"json"` type is used for paths that reference nodes in an arbitrary JSON file.
-
-The `type` field of a `Path` object is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
-
-(rfcs:rfc8:path-interface-field-format)=
-##### Field: `format`
-
-The `format` field of a `Path` object declares how the `href` string is to be interpreted.
-Implementations MUST use the `format` field to interpret the `href` and MUST NOT infer the format from the `href` string itself (e.g. from a `file://` or `https://` prefix).
-
-The following path formats are defined:
-
-| Format | Defined in | Description |
+| Step type | Fields | Description |
 | - | - | - |
-| `"relative"` | this RFC | A path relative to the metadata document that contains the `Path` object. |
+| `"relative"` | `path` (required) | Moves to the location at the relative `path` from the current location. |
+| `"zarr"` | `path` (optional) | Moves to the location at the relative `path` from the current location, if `path` is present, and opens the Zarr group or array at that location by reading its `zarr.json`. |
+| `"json"` | – | Reads the current location as a standalone JSON document. |
+| `"id"` | `id` (required) | Selects the declaration with the given `id` in the current metadata document. |
 
-Only `relative` is a core path format of this RFC.
-Implementations that do not support the declared `format` MUST NOT attempt to resolve the path and SHOULD treat the referenced node as unavailable.
+Steps are resolved as follows:
 
-Future RFCs may propose additional path formats, such as S3 URLs or chained paths (e.g. for referencing files within a zip file).
+- The current location is initially the location of the metadata document that contains the `ref` field,
+  i.e. the Zarr group whose `zarr.json` contains it, or the directory of the standalone JSON file that contains it.
+  The current metadata document is initially that document.
+- A `relative` step changes the current location. It does not read any data.
+- A `zarr` step opens a Zarr node and makes it the current location.
+  Implementations MUST append `zarr.json` to the location to access the metadata of the Zarr node.
+  As Zarr uses JSON, the `zarr.json` document MUST be parsed and interpreted as JSON.
+  The Zarr node's `zarr.json` becomes the current metadata document.
+- A `json` step reads the file at the current location as a [standalone JSON](#standalone-json) metadata document, which becomes the current metadata document.
+  Its directory becomes the current location.
+- An `id` step selects the declaration with the given ID in the current metadata document.
+  An `id` step MUST be the last step of a locator.
+  The value of its `id` field MUST follow the [ID rules](#ids).
+  Implementations MUST report an error if no declaration with the given ID exists in the current metadata document.
 
-(rfcs:rfc8:path-interface-field-href)=
-##### Field: `href`
+Implementations MUST report an error if a step cannot be applied to the result of the previous step, e.g. if a `json` step follows a `zarr` step.
+Implementations MUST use the step types to determine how to access a location and MUST NOT infer it from a path string (e.g. from a `.json` suffix or a `file://` or `https://` prefix).
 
-The `href` string locates the referenced document in the declared `format`.
-This RFC defines the rules for `href` values with the `relative` format only.
+The `id` step MAY be left out if the other steps locate a metadata document and its root node is to be referenced.
+A locator that does not end with an `id` step and whose steps result in a metadata document locates the root node of that document, i.e. the `content` of its [OME-Zarr envelope](#ome-zarr-envelope).
+For example, `[{"type": "zarr", "path": "./raw"}]` locates the root node of the Zarr group `./raw`.
 
-- Relative paths are resolved from the location of the metadata document that contains the `Path` object,
-  i.e. from the Zarr group whose `zarr.json` contains it, or from the directory of the standalone JSON file that contains it.
+Wherever a locator references a declaration, e.g. in the `input` and `output` fields of coordinate transformations,
+the field that holds the locator defines which `type`s the declaration MAY have.
+Implementations MUST report an error if the `type` of the located declaration is not allowed by that field.
+
+The `type` field of a locator step is an extension point. For detail on how to extend the `type` field with new values, see [Extensions](#extensions).
+An extension that defines a custom step type defines its fields and which results of a previous step it accepts and produces.
+Remote URLs, archives such as zip files, cloud storage and similar ways of locating data are expected to be defined as custom step types.
+Implementations that do not support a step type in a locator MUST NOT attempt to resolve the locator and SHOULD treat its target as unavailable.
+
+(rfcs:rfc8:locator-interface-field-path)=
+##### Field: `path`
+
+The `path` field of the `relative` and `zarr` steps is a relative path from the current location.
+
 - Relative paths follow the relative path notation defined in [IETF RFC1808](https://datatracker.ietf.org/doc/html/rfc1808).
   Briefly, `.` and `..` are used to navigate the hierarchy and the hierarchy is separated by `/`.
 - Relative paths may be used for data stored on traditional file systems as well as other storage protocols, such as HTTP or S3.
-  The storage protocol is determined by how the containing document was accessed, not by the `href`.
+  The storage protocol is determined by how the containing document was accessed, not by the `path`.
 
 Examples:
 - `./image.ome.zarr`
@@ -308,15 +339,15 @@ Examples:
 
 See the [Security](#security) section for guidance on access restrictions.
 
-(rfcs:rfc8:path-interface-resolution)=
-##### Path resolution
+(rfcs:rfc8:locator-interface-resolution)=
+##### Locator resolution
 
-Resolving a node's `path` means loading the document it locates, and, if the root node of that document has child nodes with a `path`, resolving those in turn.
-Resolving node paths MUST NOT form a cycle: a node's `path` MUST NOT resolve to a document that contains that node, directly or through a chain of other node paths.
+Resolving a node's `ref` means loading the document it locates and selecting the located node, i.e. the root node of that document or the node selected by a final `id` step, and, if that node has child nodes with a `ref`, resolving those in turn.
+Resolving node locators MUST NOT form a cycle: a node's `ref` MUST NOT resolve to a document that contains that node, directly or through a chain of other node locators.
 Implementations MUST detect cycles and MUST stop resolving and report an error when they encounter one.
 
-This rule applies to the `path` fields of nodes.
-The `path` field of a [`Reference`](#reference-interface) only locates the document that contains the referenced object and MAY point back to an enclosing document, e.g. from a resolution level to the coordinate systems of its multiscale.
+This rule applies to the `ref` fields of nodes.
+Locators in other fields, e.g. the `input` and `output` of coordinate transformations, only locate the referenced object and MAY point back to an enclosing document, e.g. from a resolution level to the coordinate systems of its multiscale.
 
 (rfcs:rfc8:ids)=
 #### IDs
@@ -346,72 +377,9 @@ Every declaration MUST have the following fields:
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 
 Additional fields, traits and child nodes of an object are defined on its declaration.
-Everywhere else, the object is referred to with a [`Reference`](#reference-interface).
-Declarations use the `id` key and references use the `ref` key, so that a declaration can always be distinguished from a reference.
-
-(rfcs:rfc8:reference-interface)=
-#### `Reference` interface
-
-The `Reference` interface is a consistent system for referring to OME-Zarr metadata objects.
-A reference points to an object that is [declared](#declaration-interface) elsewhere, e.g. in the `input` and `output` fields of coordinate transformations.
-A reference is either a string (the short form) or an object (the full form).
-
-(rfcs:rfc8:reference-interface-example)=
-##### Example
-
-A reference to a coordinate system that is declared in the same document, in the short form:
-
-```jsonc
-"output": "000002"
-```
-
-The same reference in the full form:
-
-```jsonc
-"output": { "type": "coordinate_system", "ref": "000002" }
-```
-
-A reference to a coordinate system that is declared in another document:
-
-```jsonc
-"input": {
-  "type": "coordinate_system",
-  "path": { "type": "zarr", "format": "relative", "href": "./raw" },
-  "ref": "000005"
-}
-```
-
-(rfcs:rfc8:reference-interface-schema)=
-##### Schema
-
-A reference MUST be either a string or an object.
-
-String references MAY be used for convenience and are subject to the following requirements:
-
-- A string reference MUST be the `id` of a declaration in the current metadata document.
-- A string reference MUST only be used if the field that holds it unambiguously determines the `type` of the referenced declaration, e.g. the `output` field of a `coordinateTransformation` unambiguously references a `coordinateSystem` declaration somewhere.
-
-A string reference is equivalent to an object reference whose `type` is the type determined by the field holding the reference, whose `ref` is the string, and which has no `path`.
-
-An object reference MUST have the following fields:
-
-| Field | Type | Required? | Notes |
-| - | - | - | - |
-| `"type"` | string | yes | Value MUST be the `type` of the referenced declaration. |
-| `"ref"` | string | yes | Value MUST be the `id` of the referenced declaration. |
-| `"path"` | object | no | Value MUST be a `Path` object locating the document that contains the referenced declaration. |
-
-An object reference MUST NOT contain any other fields.
-In particular, a reference MUST NOT carry traits or child nodes; these belong to the declaration.
-
-(rfcs:rfc8:reference-interface-resolution)=
-##### Resolution
-
-- A string reference is resolved within the current metadata document.
-- If the `path` of an object reference is absent, `ref` is resolved within the current metadata document.
-- If the `path` of an object reference is present, `ref` is resolved within the metadata document that `path` locates.
-- The resolved declaration MUST have the `type` that the reference names or, for a string reference, the type that its field determines.
-  Implementations MUST report an error if no declaration with the given ID exists in the resolved document, or if its `type` does not match.
+Everywhere else, the object is referenced with a [locator](#locator-interface).
+Declarations are objects with an `id` field and locators are arrays, so that a declaration can always be distinguished from a reference.
+A declaration MAY have a `ref` field that locates where its content is stored, e.g. a node whose metadata is stored in another document.
 
 (rfcs:rfc8:abstract-structure)=
 ### Abstract structure
@@ -492,7 +460,7 @@ It holds the document-level fields and a single `Node` in its `content` field.
 The `Node` stored in the `content` field is the root node of the metadata document.
 It has the same schema as any other `Node`, e.g. one declared in the `nodes` field of a `collection` node.
 Document-level fields such as `version` and `extensionManifest` are not fields of the `Node` interface,
-so a node can be moved between documents (e.g. by inlining a path-referenced node or splitting a node out into its own document) without adding or removing them.
+so a node can be moved between documents (e.g. by inlining a node located by a `ref` or splitting a node out into its own document) without adding or removing them.
 
 #### Metadata storage
 
@@ -574,7 +542,7 @@ This also applies to nested collections: their `zarr.json` documents may be cons
                         "type": "multiscale",
                         "id": "000002",
                         "name": "image",
-                        "path": { "type": "zarr", "format": "relative", "href": "./image" }
+                        "ref": [{"type": "zarr", "path": "./image"}]
                     }
                 ]
             }
@@ -640,12 +608,12 @@ on a specific file system hierarchy.
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"nodes"` | array | no | Value MUST be an array of `Node` objects. |
-| `"path"` | object | no | Value MUST be a `Path` object. |
+| `"ref"` | array | no | Value MUST be a [locator](#locator-interface) that locates a metadata document. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits). |
 
-Either `"nodes"` or `"path"` MUST be present, but not both.
+Either `"nodes"` or `"ref"` MUST be present, but not both.
 
-If `"path"` is present, the document it resolves to MUST have a root node of type `collection`.
+If `"ref"` is present, the node it locates MUST have type `collection`.
 
 ```jsonc
 {
@@ -659,11 +627,7 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
               "type": "collection",
               "id": "000002",
               "name": "gallery1",
-              "path": {
-                "type": "json",
-                "format": "relative",
-                "href": "../gallery.json"
-              }
+              "ref": [{"type": "relative", "path": "../gallery.json"}, {"type": "json"}]
           }, ...]
       }
   }
@@ -686,7 +650,7 @@ Instead, they are stored in the `data` field of a [`Multiscale` node](#multiscal
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be `"array"`. |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
-| `"path"` | object | no | Value MUST be a `Path` object. |
+| `"ref"` | array | no | Value MUST be a [locator](#locator-interface) that locates a Zarr array, e.g. `[{"type": "zarr", "path": "./s0"}]`. It MUST NOT contain an `id` step. |
 | `"downsamplingTransformations"` | array | no | Value MUST be an array of [`Downsampling Transformation`](#downsampling-transformation-interface) objects, from this resolution level to the highest-resolution level. |
 
 (rfcs:rfc8:array-node-field-downsamplingTransformations)=
@@ -712,19 +676,11 @@ the `input` is the `Array` object itself, and the `output` is the highest-resolu
       "data": [
         {
           "type": "array",
-          "path": {
-            "type": "zarr",
-            "format": "relative",
-            "href": "s0"
-          }
+          "ref": [{"type": "zarr", "path": "s0"}]
         },
         {
           "type": "array",
-          "path": {
-            "type": "zarr",
-            "format": "relative",
-            "href": "s1"
-          },
+          "ref": [{"type": "zarr", "path": "s1"}],
           "downsamplingTransformations": [
             {"type": "scale", "scale": [1, 2, 2]},
             {"type": "translation", "translation": [0, 0.5, 0.5]}
@@ -752,14 +708,14 @@ A `Multiscale` node is a leaf node: it has no child nodes. Its resolution levels
 | `"id"` | string | yes | Value MUST be the identifier of the declared object. IDs MUST be unique within the JSON document where they are defined. IDs MUST follow the [ID rules](#ids). |
 | `"name"` | string | no | Value MUST be a non-empty string intended for human-readable display. |
 | `"data"` | array | no | Value MUST be an array of `Array` objects. [See array object](#array-object). |
-| `"path"` | object | no | Value MUST be a `Path` object. |
+| `"ref"` | array | no | Value MUST be a [locator](#locator-interface) that locates a metadata document. |
 | `"coordinateSystems"` | array | yes | Value MUST be an array of `coordinateSystem` objects. |
 | `"coordinateTransformations"` | array | yes | Value MUST be an array of `coordinateTransformation` objects, the output of which MUST be present in the `coordinateSystems` array. |
 | `"traits"` | array | no | Value MUST be an array of `Trait` objects. [See traits section](#traits).|
 
-Either `"data"` or `"path"` MUST be present, but not both.
+Either `"data"` or `"ref"` MUST be present, but not both.
 
-If `"path"` is present, the document it resolves to MUST have a root node of type `multiscale`.
+If `"ref"` is present, the node it locates MUST have type `multiscale`.
 
 ```jsonc
 {
@@ -773,11 +729,7 @@ If `"path"` is present, the document it resolves to MUST have a root node of typ
               {
                 "name": "s0",
                 "type": "array",
-                "path": {
-                  "type": "zarr",
-                  "format": "relative",
-                  "href": "./s0"
-                }
+                "ref": [{"type": "zarr", "path": "./s0"}]
               },
               ...
             ]
@@ -802,23 +754,19 @@ Coordinate systems and transformations can be stored in two distinct locations:
     {
       "type": "translation",
       "translation": [0, 0, 100],
-      "input": {
-        // references coordinate system 'physical' defined in image_1
-        "type": "coordinate_system",
-        "ref": "000005",
-        "path": {"type": "zarr", "format": "relative", "href": "./image_1"}
-      },
+      // references coordinate system 'physical' defined in image_1
+      "input": [{"type": "zarr", "path": "./image_1"}, {"type": "id", "id": "000005"}],
       // references coordinate system 'world' defined in the same document
-      "output": "000002"
+      "output": [{"type": "id", "id": "000002"}]
     }
   ]
 }
 ```
 
 In a change from RFC-5, coordinate systems are referenced by ID and not by name.
-Each `input` and `output` is a [`Reference`](#reference-interface).
-A coordinate system that is declared in the same document is referenced by its ID as a string.
-A coordinate system that is declared in another document is referenced with an object reference that names the kind of the target (`coordinate_system`), its ID in the `ref` field, and the `path` of the document.
+Each `input` and `output` is a [locator](#locator-interface) that references a declaration.
+A coordinate system that is declared in the same document is referenced with a locator that consists of a single `id` step.
+A coordinate system that is declared in another document is referenced with a locator whose steps first locate that document and then select the coordinate system with an `id` step.
 
 ```jsonc
 {
@@ -843,30 +791,14 @@ A coordinate system that is declared in another document is referenced with an o
             {
               "type": "translation",
               "translation": [0, 0, 100],
-              "input": {
-                "type": "coordinate_system",
-                "ref": "000005",
-                "path": {
-                  "type": "zarr",
-                  "format": "relative",
-                  "href": "./tile_0.zarr"
-                }
-              },  // references coordinate system "physical" defined in tile_0
-              "output": "000002"  // references coordinate system "world" defined in same node
+              "input": [{"type": "zarr", "path": "./tile_0.zarr"}, {"type": "id", "id": "000005"}],  // references coordinate system "physical" defined in tile_0
+              "output": [{"type": "id", "id": "000002"}]  // references coordinate system "world" defined in same node
             },
             {
               "type": "translation",
               "translation": [100, 0, 0],
-              "input": {
-                "type": "coordinate_system",
-                "ref": "000006",
-                "path": {
-                  "type": "zarr",
-                  "format": "relative",
-                  "href": "./tile_1.zarr"
-                }
-              },  // references coordinate system "physical" defined in tile_1
-              "output": "000002"  // references coordinate system "world" defined in same node
+              "input": [{"type": "zarr", "path": "./tile_1.zarr"}, {"type": "id", "id": "000006"}],  // references coordinate system "physical" defined in tile_1
+              "output": [{"type": "id", "id": "000002"}]  // references coordinate system "world" defined in same node
             }
           ]
         }
@@ -876,21 +808,13 @@ A coordinate system that is declared in another document is referenced with an o
           "type": "multiscale",
           "id": "000003",
           "name": "Tile 0",
-          "path": {
-            "type": "zarr",
-            "format": "relative",
-            "href": "./tile_0.zarr"
-          }
+          "ref": [{"type": "zarr", "path": "./tile_0.zarr"}]
         },
         {
           "type": "multiscale",
           "id": "000004",
           "name": "Tile 1",
-          "path": {
-            "type": "zarr",
-            "format": "relative",
-            "href": "./tile_1.zarr"
-          }
+          "ref": [{"type": "zarr", "path": "./tile_1.zarr"}]
         }
       ]
     }
@@ -922,8 +846,8 @@ The `Coordinate Transformation` objects have the following fields:
 | Field | Type | Required? | Notes |
 | - | - | - | - |
 | `"type"` | string | yes | Value MUST be a valid coordinate transform type, as defined in RFC-5. |
-| `"input"` | string or object | yes | Value MUST be a [`Reference`](#reference-interface) to the input of the transformation. |
-| `"output"` | string or object | yes | Value MUST be a [`Reference`](#reference-interface) to the output of the transformation. |
+| `"input"` | array | yes | Value MUST be a [locator](#locator-interface) that locates the input of the transformation. |
+| `"output"` | array | yes | Value MUST be a [locator](#locator-interface) that locates the output of the transformation. |
 
 Additional fields MAY be added as required by the transform type.
 
@@ -931,22 +855,22 @@ Depending on the context, the `input` and `output` references point to different
 
 | Context | `input` | `output` |
 | - | - | - |
-| **scene** | `"000002"` or `{"type": "coordinate_system", "path": {..., "href": "./imageA"}, "ref": "000005"}` | `"000003"` or `{"type": "coordinate_system", "path": {..., "href": "./imageB"}, "ref": "000006"}` |
-| **Multiscale > coordinateTransformations** | `"000001"` (the enclosing multiscale) | `"000002"` |
+| **scene** | `[{"type": "id", "id": "000002"}]` or `[{"type": "zarr", "path": "./imageA"}, {"type": "id", "id": "000005"}]` | `[{"type": "id", "id": "000003"}]` or `[{"type": "zarr", "path": "./imageB"}, {"type": "id", "id": "000006"}]` |
+| **Multiscale > coordinateTransformations** | `[{"type": "id", "id": "000001"}]` (the enclosing multiscale) | `[{"type": "id", "id": "000002"}]` |
 
 **Multiscale > coordinateTransformations**: In the context of multiscales transformations, the following requirements apply:
-- The `input` field MUST be a reference of type `multiscale` to the enclosing [`Multiscale` node](#multiscale-node).
+- The `input` field MUST be a reference to the enclosing [`Multiscale` node](#multiscale-node).
   It stands for the highest-resolution `Array` object in the `data` field of the multiscale.
   Lower-resolution `Array` objects are related to the highest-resolution one by their [downsampling transformations](#downsampling-transformation-interface).
-- The `output` field MUST be a reference of type `coordinate_system` to a coordinate system in the `coordinateSystems` field of the multiscale.
+- The `output` field MUST be a reference to a coordinate system in the `coordinateSystems` field of the multiscale.
 - The `output` fields of all transformations MUST reference the same coordinate system.
-- Both references SHOULD be strings.
+- Both references SHOULD consist of a single `id` step.
 
 **Node/Multiscales > scene > coordinateTransformations**:
 In the context of node-level transformations between different multiscales, the following requirements apply:
-- The `input` and `output` fields MUST be references of type `coordinate_system`.
-- If the referenced coordinate system is declared in the same metadata document, the reference SHOULD be a string.
-- If the referenced coordinate system is declared in a different metadata document, the reference MUST be an object with a `path` field.
+- The `input` and `output` fields MUST be references to coordinate systems.
+- If the referenced coordinate system is declared in the same metadata document, the reference SHOULD consist of a single `id` step.
+- If the referenced coordinate system is declared in a different metadata document, the reference MUST contain steps that locate that document before the final `id` step.
 
 ##### `Downsampling Transformation` interface
 
@@ -1052,7 +976,7 @@ An extension point is a `type` field within an object where (1) the value of the
 
 At such an extension point, a custom type may be used by specifying its identifier in the `type` field, in lieu of one of the values allowed by the specification. The custom type, as defined by the extension it belongs to, will then dictate how the object is to be interpreted.
 
-For example, the [`Path` interface](#path-interface) proposed by this very RFC has an extension point: it has a `type` field defined as accepting two values (`zarr` and `json`); the value dictates how the entire `Path` object is to be interpreted; and the specification explicitly states it is an extension point. An extension could then define a new, custom type of `Path` object.
+For example, the [locator steps](#locator-interface) proposed by this very RFC have an extension point: a step has a `type` field defined as accepting four values (`relative`, `zarr`, `json` and `id`); the value dictates how the entire step object is to be interpreted; and the specification explicitly states it is an extension point. An extension could then define a new, custom type of locator step.
 
 ### Extension manifest
 
@@ -1116,9 +1040,10 @@ Writers SHOULD set `mustUnderstand: true` for a given extension only when ignori
 
 ### Examples
 
-#### Extending the `Path` object
+#### A custom locator step
 
-This example illustrates an extension with ID `https://ngff.example.org/omero/` that adds a custom type of `Path` that points to an image on an OMERO server rather than to a file.
+This example illustrates an extension with ID `https://ngff.example.org/omero/` that adds a custom type of locator step that points to an image on an OMERO server rather than to a file.
+The step does not depend on a previous step, so it is the first step of the locator. It resolves to the metadata document of the OMERO image.
 
 ```jsonc
 {
@@ -1141,25 +1066,27 @@ This example illustrates an extension with ID `https://ngff.example.org/omero/` 
         ],
         "content": {
             "type": "collection",
-            "id": "000003"
+            "id": "000003",
             "nodes": [
                 {
                     "name": "original-acquisition",
                     "type": "multiscale",
                     "id": "000001",
-                    "path": {
-                        "type": "https://ngff.example.org/omero/OMEROPath",
-                        "href": "https://omero.example.org/webclient/?show=image-48213",
-                        "host": "omero.example.org",
-                        "port": 4064,
-                        "imageId": 48213
-                    }
+                    "ref": [
+                        {
+                            "type": "https://ngff.example.org/omero/OMEROImage",
+                            "url": "https://omero.example.org/webclient/?show=image-48213",
+                            "host": "omero.example.org",
+                            "port": 4064,
+                            "imageId": 48213
+                        }
+                    ]
                 },
                 {
                     "name": "segmentation",
                     "type": "multiscale",
                     "id": "000002",
-                    "path": {"type": "zarr", "format": "relative", "href": "./segmentation"}
+                    "ref": [{"type": "zarr", "path": "./segmentation"}]
                 }
             ]
         }
@@ -1172,14 +1099,14 @@ The JSON-Schema for that extension could be:
 ```jsonc
 {
     "$defs": {
-        "OMEROPath": {
-            "description": "A Path that points to an image on an OMERO server.",
+        "OMEROImage": {
+            "description": "A locator step that points to an image on an OMERO server.",
             "properties": {
                 "type": {
                     "description": "The object's type",
                     "type": "string"
                 },
-                "href": {
+                "url": {
                     "description": "Full URL to the image.",
                     "type": "string"
                 },
@@ -1199,7 +1126,7 @@ The JSON-Schema for that extension could be:
             },
             "required": [
                 "type",
-                "href",
+                "url",
                 "host",
                 "imageId"
             ],
@@ -1220,13 +1147,13 @@ imports:
     - linkml:types
 default_range: string
 classes:
-    OMEROPath:
-        description: A Path that points to an image on an OMERO server.
+    OMEROImage:
+        description: A locator step that points to an image on an OMERO server.
         attributes:
             type:
                 description: The object’s type.
                 required: true
-            href:
+            url:
                 description: Full URL to the image.
                 range: uri
                 required: true
@@ -1296,12 +1223,10 @@ In this example, a `https://ngff.example.com/transforms/` extension defines a cu
                     "coordinateTransformations": [
                         {
                             "type": "https://ngff.example.com/transforms/ThinPlateSpline",
-                            "input": "000002",
-                            "output": "000003",
+                            "input": [{"type": "id", "id": "000002"}],
+                            "output": [{"type": "id", "id": "000003"}],
                             "controlPoints": {
-                                "type": "zarr",
-                                "format": "relative",
-                                "href": "./tps/control_points"
+                                "ref": [{"type": "zarr", "path": "./tps/control_points"}]
                             },
                             "regularization": 0.01
                         }
@@ -1357,7 +1282,7 @@ In this example, two OME-Zarr viewers, “Viewer A” and “Viewer B” each ha
                     "name": "nuclei",
                     "type": "multiscale",
                     "id": "000002",
-                    "path": {"type": "zarr", "format": "relative", "href": "./nuclei"},
+                    "ref": [{"type": "zarr", "path": "./nuclei"}],
                     "traits": [
                         {
                             "type": "https://viewer-a.example.com/settings/Layer",
@@ -1396,8 +1321,10 @@ The following table recapitulates the currently defined built-in types along wit
 | - | - | - | - |
 | `collection` | Node | Core type | This RFC |
 | `multiscale` | Node | Core type | This RFC |
-| `zarr` | Path | Core type | This RFC |
-| `json` | Path | Core type | This RFC |
+| `relative` | Locator step | Core type | This RFC |
+| `zarr` | Locator step | Core type | This RFC |
+| `json` | Locator step | Core type | This RFC |
+| `id` | Locator step | Core type | This RFC |
 | `scene` | Trait | Core type | This RFC |
 | `array` | Data object (multiscale `data` field) | Core type | This RFC |
 | `index` | Axis | Core type | RFC-5 |
@@ -1582,11 +1509,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
       "data": [
         {
           "type": "array",
-          "path": {
-            "type": "zarr",
-            "format": "relative",
-            "href": "./s0"
-          }
+          "ref": [{"type": "zarr", "path": "./s0"}]
         }
       ],
       "coordinateSystems": [
@@ -1615,19 +1538,11 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
       "data": [
         {
           "type": "array",
-          "path": {
-            "type": "zarr",
-            "format": "relative",
-            "href": "./s0"
-          }
+          "ref": [{"type": "zarr", "path": "./s0"}]
         },
         {
           "type": "array",
-          "path": {
-            "type": "zarr",
-            "format": "relative",
-            "href": "./s1"
-          },
+          "ref": [{"type": "zarr", "path": "./s1"}],
           "downsamplingTransformations": [
             {"type": "scale", "scale": [1, 2, 2]},
             {"type": "translation", "translation": [0, 0.5, 0.5]}
@@ -1646,8 +1561,8 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
         {
           "type": "scale",
           "scale": [0.9, 0.45, 0.45],
-          "input": "000001",
-          "output": "000002"
+          "input": [{"type": "id", "id": "000001"}],
+          "output": [{"type": "id", "id": "000002"}]
         }
       ]
     }
@@ -1670,11 +1585,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
                 "name": "raw",
                 "type": "multiscale",
                 "id": "000002",
-                "path": {
-                  "type": "zarr",
-                  "format": "relative",
-                  "href": "./raw",
-                },
+                "ref": [{"type": "zarr", "path": "./raw"}],
                 "traits": [
                     {
                         "type": "example-viewer.org/ngff/settings",
@@ -1689,11 +1600,7 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
                   "name": "nested_collection",
                   "type": "collection",
                   "id": "000003",
-                  "path": {
-                    "type": "json",
-                    "format": "relative",
-                    "href": "./nested_collection.json"
-                  }
+                  "ref": [{"type": "relative", "path": "./nested_collection.json"}, {"type": "json"}]
               }, ...
             ]
         }
@@ -1721,19 +1628,15 @@ https://github.com/normanrz/ngff-rfc8-collection-examples/.
                   {
                     "name": "raw_0",
                     "type": "array",
-                    "path": {
-                      "type": "zarr",
-                      "format": "relative",
-                      "href": "./raw/0"
-                    }
+                    "ref": [{"type": "zarr", "path": "./raw/0"}]
                   }
                 ],
                 "coordinateTransformations": [
                   {
                     "type": "scale",
                     "scale": [1, 1, 1],
-                    "input": "000002",
-                    "output": "000003"
+                    "input": [{"type": "id", "id": "000002"}],
+                    "output": [{"type": "id", "id": "000003"}]
                   }
                 ],
                 "coordinateSystems": [
@@ -1910,11 +1813,11 @@ Internal references (e.g., for `input`, `output`, `source`) would use proper JSO
 
 The core problem with JSON-LD for this RFC is that it is based on IRIs, which makes path-based references difficult.
 Standard JSON-LD linking does not support relative paths (e.g., `./image.zarr`) or file system paths.
-It also does not support the typed path mechanism—distinguishing between `zarr` and `json` path types—that is a central part of this RFC.
-This would force a hybrid approach where the `Path` interface uses JSON-LD syntax (`@type`) but does not conform to JSON-LD semantics.
+It also does not support typed locator steps—distinguishing between `zarr` and `json` steps—that are a central part of this RFC.
+This would force a hybrid approach where the `ref` locators use JSON-LD syntax (`@type`) but does not conform to JSON-LD semantics.
 
 Such a hybrid approach introduces its own complexity.
-Users familiar with JSON-LD would expect standard linking to work, but our custom `Path` mechanism is not standard JSON-LD.
+Users familiar with JSON-LD would expect standard linking to work, but our custom `ref` locator mechanism is not standard JSON-LD.
 Generic JSON-LD processors would not understand the custom path mechanism and would not be able to fully process the metadata.
 The benefit of reusing existing JSON-LD tooling would thus be largely negated.
 
@@ -2205,11 +2108,22 @@ from the Geo Community https://stacindex.org/ https://stacspec.org/
 
 ### Separate declaration and reference keys
 
-Several existing formats use different keys for declaring an object and for referring to it, as the [declarations](#declaration-interface) and [references](#reference-interface) in this RFC do:
+Several existing formats use different keys for declaring an object and for referring to it, as the [declarations](#declaration-interface) and [locators](#locator-interface) in this RFC do:
 
 - **[OME-XML](https://www.openmicroscopy.org/Schemas/)** declares objects with an `ID` attribute (e.g. `<Image ID="Image:0">`) and refers to them with dedicated `…Ref` elements (e.g. `<ImageRef ID="Image:0"/>`).
 - **[FHIR](https://hl7.org/fhir/references.html)** declares resources with an `id` and refers to them with a `Reference` data type whose `reference` field names the type and ID of the target (e.g. `"reference": "Patient/123"`).
 - **[STAC](https://github.com/radiantearth/stac-spec)** declares catalogs, collections and items with an `id` and links between them with link objects that carry an `href` and a `rel` describing the relationship.
+
+### Locators and URL pipelines
+
+The [`Locator` interface](#locator-interface) builds on the [URL pipeline specification](https://github.com/jbms/url-pipeline) by Jeremy Maitin-Shephard ([`jbms`](https://github.com/jbms)).
+URL pipelines introduced the core idea: a location is a chain of steps (e.g. `https://…|zip:…|zarr3:…`), each resolved relative to the result of the previous one, and new kinds of steps can be added without changing the syntax.
+
+Chris Barnes ([`clbarnes`](https://github.com/clbarnes)) adapted this idea to OME-Zarr metadata in a [proposal for links and references between OME-Zarr nodes and metadata](https://forum.image.sc/t/2026-ome-zarr-hackathon-zurich-links-references-between-ome-zarr-nodes-and-metadata/123084), made at the 2026 OME-Zarr hackathon in Zurich:
+the steps become typed JSON objects, and step types are an extension point.
+
+This RFC does not use URL pipelines directly. Locators are not limited to strings, and JSON is better at expressing structured data,
+e.g. steps with several fields or fields defined by extensions, which can be validated with JSON Schema.
 
 ### BIDS
 https://direct.mit.edu/imag/article/doi/10.1162/imag_a_00103/119672/The-Past-Present-and-Future-of-the-Brain-Imaging
@@ -2385,7 +2299,7 @@ The collections mechanism is a possibility for extending OME-Zarr in a backwards
 Future additions include:
 
 - Additional node types, such as tables, meshes
-- Additional path formats, such as S3 URLs
+- Additional locator step types, such as S3 URLs or files within zip archives
 - A `source` trait on any node ("derived from"), and a node type for data that is not OME-Zarr (a path, possibly into an archive, and the data's own coordinate systems), so derived images can name what they came from across the format boundary (user stories 3, 9, 11)
 - Traits stating the extent of a node per resolution level and whether absent chunks are unwritten or fill, so sparse and sub-region images render correctly (user story 11)
 - A rule that a node's `id` is the identifier a provenance record (such as the `provenance:` Zarr convention) uses for it, so that process history and node relationships can be joined (user story 11)
@@ -2394,10 +2308,6 @@ Within the collections proposal, there are also opportunities for standardizing 
 
 - Rendering state
 - Expressing relationships between nodes in a collection
-
-Future work:
-
-- Implementing the [URL pipeline specification](https://github.com/jbms/url-pipeline) proposed by Jeremy Maitin-Shephard
 
 ### Extensibility
 
@@ -2512,14 +2422,14 @@ Most RFCs will not need to consider all the following issues. They are included 
 
 ### Security
 
-This proposal allows collection metadata to reference other metadata documents through `Path` objects.
-The core of this RFC only defines the `relative` path format, which introduces the security considerations below that implementations MUST address.
+This proposal allows collection metadata to reference other metadata documents through `ref` locators.
+The core of this RFC only defines locator steps that resolve relative paths, which introduces the security considerations below that implementations MUST address.
 
 **Path traversal.** Relative paths (e.g. `../../sensitive/data`) may be used to reference files outside the intended storage scope.
 Implementations SHOULD validate that resolved paths remain within an expected root directory or storage namespace, and MUST NOT follow paths that escape a defined sandbox without explicit user consent.
 
 **Resource exhaustion.** Cyclic or very deeply nested paths may cause implementations to issue an unbounded number of requests.
-Implementations MUST detect cycles as described in [Path resolution](#rfcs:rfc8:path-interface-resolution) and MAY limit the depth to which they resolve nested paths.
+Implementations MUST detect cycles as described in [Locator resolution](#rfcs:rfc8:locator-interface-resolution) and MAY limit the depth to which they resolve nested locators.
 
 <!--
 What impact will this proposal have on security? Does the proposal require a
